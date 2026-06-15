@@ -245,6 +245,22 @@ a{color:inherit}
 #addm input:focus,#addm select:focus,#venuem input:focus,#venuem select:focus,#venuem textarea:focus{border-color:var(--sage)}
 #addm .nacts,#venuem .nacts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
 .sec-edit{margin-left:auto;font-size:11px;font-weight:600;color:var(--sage-d);background:var(--sage-soft);border:none;padding:4px 12px;border-radius:8px}
+
+/* 项目/迁移弹窗 */
+#eventm,#migm{position:fixed;inset:0;background:rgba(40,54,49,.55);z-index:550;display:none;align-items:center;justify-content:center;padding:22px;overflow:auto}
+#eventm.on,#migm.on{display:flex}
+#eventm .nbox,#migm .nbox{background:#fff;border-radius:18px;padding:18px;width:100%;max-width:360px;box-shadow:0 20px 50px rgba(40,54,49,.3)}
+#eventm .ntitle,#migm .ntitle{font-size:16px;font-weight:700;margin-bottom:4px;color:var(--ink)}
+#eventm .fl,#migm .fl{display:block;font-size:11.5px;color:var(--muted);margin:11px 0 4px}
+#eventm input,#migm select{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px 11px;font-size:14px;font-family:inherit;outline:none;background:#fbfdfc}
+#eventm input:focus,#migm select:focus{border-color:var(--sage)}
+#eventm .nacts,#migm .nacts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+#migm .mig-what{font-size:13.5px;color:var(--ink);background:var(--sage-soft);border-radius:10px;padding:10px 12px;margin-bottom:4px;line-height:1.5}
+/* 项目行操作 */
+.evrow .evacts{display:inline-flex;gap:5px;margin-left:8px;flex:0 0 auto}
+.evrow .evacts button{font-size:11px;border:none;border-radius:7px;padding:3px 9px;background:var(--sage-soft);color:var(--sage-d);font-weight:600}
+.evrow .evacts button.del{background:#f6e3df;color:#c4756a}
+.hotel .hmig{font-size:11px;color:#6f6ab0;background:#ece9f4;border:none;padding:4px 11px;border-radius:8px;float:right;margin-right:6px;margin-top:-2px}
 .vcard.addcard{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:188px;border:1.5px dashed var(--sage);background:var(--sage-soft);color:var(--sage-d);cursor:pointer;text-align:center}
 .vcard.addcard .plus{font-size:36px;line-height:1}
 .vcard.addcard .lab{font-size:13px;font-weight:700;margin-top:6px}

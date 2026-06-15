@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=3";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=4";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -273,8 +273,12 @@ async function renderDetail(id){
     </div>
 
     <div class="section">
-      <h3><span class="dot"></span>对应比赛项目<span class="count">${events?.length||0}</span></h3>
-      ${(events&&events.length)? events.map(e=>`<div class="evrow"><span class="en">${esc(v.c_code||"")} · ${esc(e.name||"")}${e.name_en?` / ${esc(e.name_en)}`:""}${e.note?` / ${esc(e.note)}`:""}</span><span class="es">${esc(e.schedule||"")}</span></div>`).join("") : `<div class="muted-empty">暂无</div>`}
+      <h3><span class="dot"></span>对应比赛项目${canEdit()?`<button class="sec-edit" id="add-event" style="margin-left:10px">＋添加</button>`:""}<span class="count">${events?.length||0}</span></h3>
+      ${(events&&events.length)? events.map(e=>`<div class="evrow" data-eid="${e.id}">
+        <span class="en">${esc(v.c_code||"")} · ${esc(e.name||"")}${e.name_en?` / ${esc(e.name_en)}`:""}${e.note?` / ${esc(e.note)}`:""}</span>
+        <span class="es">${esc(e.schedule||"")}</span>
+        ${canEdit()?`<span class="evacts"><button data-act="edit">改</button><button data-act="mig">迁</button><button data-act="del" class="del">删</button></span>`:""}
+      </div>`).join("") : `<div class="muted-empty">${canEdit()?"还没有项目，点上面「＋添加」":"暂无"}</div>`}
     </div>
 
     <div class="section">
@@ -349,6 +353,24 @@ async function renderDetail(id){
   });
   const addHotelBtn=app.querySelector("#add-hotel");
   if(addHotelBtn) addHotelBtn.onclick=()=>openAddHotel(id);
+  // 酒店迁移
+  app.querySelectorAll(".hmig").forEach(btn=>{
+    btn.onclick=(e)=>{ e.stopPropagation(); const h=(hotels||[]).find(x=>x.id===btn.dataset.hid); if(h) openMigrate("hotel",h,id); };
+  });
+  // 比赛项目 增/改/迁/删
+  const addEvBtn=app.querySelector("#add-event");
+  if(addEvBtn) addEvBtn.onclick=()=>openEventEditor(null,id);
+  app.querySelectorAll(".evrow .evacts button").forEach(btn=>{
+    btn.onclick=async()=>{
+      const e=(events||[]).find(x=>x.id===btn.closest(".evrow").dataset.eid); if(!e) return;
+      const act=btn.dataset.act;
+      if(act==="edit") openEventEditor(e,id);
+      else if(act==="mig") openMigrate("event",e,id);
+      else if(act==="del"){ if(!confirm(`删除项目「${e.name}」？`)) return;
+        await sb.from("venue_events").delete().eq("id",e.id);
+        await logAct(id,"删除项目",e.name); toast("已删除"); maybeThank(); renderDetail(id); }
+    };
+  });
   // 补充照片
   app.querySelectorAll(".slot[data-eid]").forEach(el=>{
     const get=()=>(extras||[]).find(x=>x.id===el.dataset.eid);
@@ -419,7 +441,7 @@ function docSlotHTML(p){
 }
 function hotelHTML(h){
   return `<div class="hotel">
-    ${canEdit()?`<button class="hedit" data-hid="${h.id}">编辑</button>`:""}
+    ${canEdit()?`<button class="hedit" data-hid="${h.id}">编辑</button><button class="hmig" data-hid="${h.id}">🔀 迁移</button>`:""}
     <div class="hn">🏨 ${esc(h.name||"")}</div>
     <div class="hmeta"><span class="lab">地址</span><span>${esc(h.address||"—")}</span></div>
     <div class="hmeta"><span class="lab">房型</span><span>${esc(h.room_type||"—")}</span></div>
@@ -652,6 +674,65 @@ document.getElementById("vm-save").onclick=async()=>{
   if(error){ toast("保存失败"); return; }
   await logAct(venueEditing,"编辑基本信息", upd.category||"场馆");
   venuem.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(venueEditing);
+};
+
+/* ---------------- 比赛项目 增/改 ---------------- */
+const eventm=document.getElementById("eventm");
+let eventEditing=null;
+function openEventEditor(e, venueId){
+  eventEditing={id:e?e.id:null, venueId};
+  document.getElementById("eventm-title").textContent=e?"编辑比赛项目":"添加比赛项目";
+  document.getElementById("em-name").value=e?.name||"";
+  document.getElementById("em-en").value=e?.name_en||"";
+  document.getElementById("em-jp").value=e?.note||"";
+  document.getElementById("em-sched").value=e?.schedule||"";
+  eventm.classList.add("on");
+  setTimeout(()=>document.getElementById("em-name").focus(),50);
+}
+document.getElementById("em-cancel").onclick=()=>eventm.classList.remove("on");
+eventm.addEventListener("click",e=>{ if(e.target===eventm) eventm.classList.remove("on"); });
+document.getElementById("em-save").onclick=async()=>{
+  if(!eventEditing) return;
+  const g=id=>document.getElementById(id).value.trim();
+  const name=g("em-name"); if(!name){ toast("项目名称必填"); return; }
+  const data={ name, name_en:g("em-en")||null, note:g("em-jp")||null, schedule:g("em-sched")||null };
+  if(eventEditing.id){
+    await sb.from("venue_events").update(data).eq("id",eventEditing.id);
+    await logAct(eventEditing.venueId,"编辑项目",name);
+  } else {
+    data.venue_id=eventEditing.venueId; data.sort_order=99;
+    await sb.from("venue_events").insert(data);
+    await logAct(eventEditing.venueId,"添加项目",name);
+  }
+  eventm.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(eventEditing.venueId);
+};
+
+/* ---------------- 整块迁移（酒店 / 项目 → 其他场馆）---------------- */
+const migm=document.getElementById("migm");
+let migCtx=null;
+async function openMigrate(kind, rec, fromVenueId){
+  migCtx={kind, rec, fromVenueId};
+  const label = kind==="hotel" ? ("酒店「"+(rec.name||"")+"」") : ("项目「"+(rec.name||"")+"」");
+  document.getElementById("mig-what").textContent="把 "+label+" 整块迁移到另一个场馆（信息原样搬过去，并留下操作记录）";
+  const {data}=await sb.from("venues").select("id,c_code,category,team").order("sort_order");
+  const sel=document.getElementById("mig-target");
+  sel.innerHTML=(data||[]).filter(x=>x.id!==fromVenueId)
+    .map(x=>`<option value="${x.id}">${x.c_code?esc(x.c_code)+" ":""}${esc(x.category||"")}${x.team?" ("+esc(x.team)+")":""}</option>`).join("");
+  migm.classList.add("on");
+}
+document.getElementById("mig-cancel").onclick=()=>migm.classList.remove("on");
+migm.addEventListener("click",e=>{ if(e.target===migm) migm.classList.remove("on"); });
+document.getElementById("mig-confirm").onclick=async()=>{
+  if(!migCtx) return;
+  const target=document.getElementById("mig-target").value; if(!target) return;
+  const table=migCtx.kind==="hotel"?"venue_hotels":"venue_events";
+  const {error}=await sb.from(table).update({venue_id:target}).eq("id",migCtx.rec.id);
+  if(error){ toast("迁移失败"); return; }
+  const what=(migCtx.kind==="hotel"?"酒店":"项目")+"「"+(migCtx.rec.name||"")+"」";
+  const tgtName=document.getElementById("mig-target").selectedOptions[0]?.textContent||"目标馆";
+  await logAct(migCtx.fromVenueId, "迁出"+(migCtx.kind==="hotel"?"酒店":"项目"), (migCtx.rec.name||"")+" → "+tgtName);
+  await logAct(target, "迁入"+(migCtx.kind==="hotel"?"酒店":"项目"), migCtx.rec.name||"");
+  migm.classList.remove("on"); toast("已迁移到 "+tgtName+" ✓"); renderDetail(migCtx.fromVenueId);
 };
 
 /* ---------------- lightbox ---------------- */

@@ -33,7 +33,10 @@ function tryUnlock(){
   else if(pw === VIEW_PASSWORD) role="viewer";
   if(!role){ document.getElementById("gate-err").textContent="密码不对，再试一次"; return; }
   sessionStorage.setItem("tako_role",role);
-  if(role==="editor" && !localStorage.getItem("tako_name")){
+  if(role==="editor"){
+    // 编辑者每次登录都必须重新填名字（同一密码可能多人用，保证编辑记录准确）
+    document.getElementById("gate-name").value="";
+    document.getElementById("gate-name-err").textContent="";
     document.getElementById("gate-step-pw").style.display="none";
     document.getElementById("gate-step-name").style.display="";
     setTimeout(()=>document.getElementById("gate-name").focus(),60);

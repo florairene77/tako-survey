@@ -192,12 +192,22 @@ async function renderDetail(id){
       ${v.venue_intro?`<div class="intro-box" style="margin-top:10px">${esc(v.venue_intro)}</div>`:""}
     </div>
 
+    ${canEdit()?`<div class="section">
+      <h3><span class="dot"></span>内部提示<span class="count">仅编辑可见 🔒</span></h3>
+      <div class="intnote">
+        <div class="ihd">🔒 画面外信息 · 只读密码看不到<button class="iedit" id="int-edit">编辑</button></div>
+        ${v.internal_note?`<div class="ibody">${esc(v.internal_note)}</div>`:`<div class="iempty">还没有内部提示，点「编辑」添加（订餐电话、提前预约天数、店长联系方式等）</div>`}
+      </div>
+    </div>`:""}
+
     <div class="section">
-      <h3><span class="dot"></span>照片资料（固定坑位）<span class="count">${filled}/${photos?.length||0} 已填</span></h3>
+      <h3><span class="dot"></span>照片资料<span class="count">${filled}/${photos?.length||0} 已填</span></h3>
       <div class="hint-line">${canEdit()?"点空坑位即可拍照/选图上传 · 长按照片加备注、点开可替换":"点照片看大图与备注 · 长按也能看备注"}</div>
       ${GROUP_ORDER.filter(g=>groups[g]).map(g=>`
-        <div class="slotgroup-title">${g}</div>
-        <div class="slots">${groups[g].map(slotHTML).join("")}</div>
+        <div class="slotgroup-title">${g}${g==="概览"?"（重要 · 点开放大）":""}</div>
+        ${g==="概览"
+          ? `<div class="slots docs">${groups[g].map(docSlotHTML).join("")}</div>`
+          : `<div class="slots">${groups[g].map(slotHTML).join("")}</div>`}
       `).join("")}
       ${((extras&&extras.length)||canEdit())?`
       <div class="slotgroup-title">补充照片（随手拍 · 不限数量）</div>
@@ -209,7 +219,7 @@ async function renderDetail(id){
 
     <div class="section">
       <h3><span class="dot"></span>对应比赛项目<span class="count">${events?.length||0}</span></h3>
-      ${(events&&events.length)? events.map(e=>`<div class="evrow"><span class="en">${esc(e.name)}</span><span class="es">${esc(e.schedule||"")}</span></div>`).join("") : `<div class="muted-empty">暂无</div>`}
+      ${(events&&events.length)? events.map(e=>`<div class="evrow"><span class="en">${esc(v.c_code||"")} · ${esc(e.name||"")}${e.name_en?` / ${esc(e.name_en)}`:""}${e.note?` / ${esc(e.note)}`:""}</span><span class="es">${esc(e.schedule||"")}</span></div>`).join("") : `<div class="muted-empty">暂无</div>`}
     </div>
 
     <div class="section">
@@ -245,8 +255,8 @@ async function renderDetail(id){
     setTimeout(()=>m.invalidateSize(),250);
   },60);
 
-  // 固定坑位
-  app.querySelectorAll(".slot[data-pid]").forEach(el=>{
+  // 固定坑位（含概览大图）
+  app.querySelectorAll(".slot[data-pid], .docslot[data-pid]").forEach(el=>{
     const get=()=>(photos||[]).find(x=>x.id===el.dataset.pid);
     if(!get().storage_path){ // 空坑位
       if(canEdit()) el.onclick=()=>pickAndUpload(get(), el, id);
@@ -255,6 +265,17 @@ async function renderDetail(id){
     bindPhoto(el,
       ()=>openLightbox({kind:"slot",rec:get(),venueId:id}),
       ()=>openNote({kind:"slot",rec:get(),venueId:id}));
+  });
+  // 内部提示编辑（仅编辑）
+  const intEdit=app.querySelector("#int-edit");
+  if(intEdit) intEdit.onclick=()=>openTextEditor("内部提示（仅编辑可见）", v.internal_note||"", async(val)=>{
+    const {error}=await sb.from("venues").update({internal_note:val||null}).eq("id",id);
+    if(error){ toast("保存失败"); return; }
+    await logAct(id,"编辑内部提示",null); toast("已保存"); renderDetail(id);
+  });
+  // 酒店编辑（仅编辑）
+  app.querySelectorAll(".hedit").forEach(btn=>{
+    btn.onclick=(e)=>{ e.stopPropagation(); const h=(hotels||[]).find(x=>x.id===btn.dataset.hid); if(h) openHotelEditor(h, id); };
   });
   // 补充照片
   app.querySelectorAll(".slot[data-eid]").forEach(el=>{
@@ -311,8 +332,22 @@ function extraHTML(e){
     <div class="caption"><span class="lab">补充照片</span>${note?`<span class="cap note">${esc(note)}</span>`:""}</div>
   </div>`;
 }
+function docSlotHTML(p){
+  if(p.storage_path){
+    const note=(p.note||"").trim();
+    const sub = note ? note : (p.caption||"");
+    return `<div class="docslot${note?" hasnote":""}" data-pid="${p.id}"${note?` title="${esc(note)}"`:""}>
+      <img loading="lazy" src="${pubUrl(p.storage_path,p.updated_at)}" alt="${esc(p.slot_label)}">
+      <span class="dzoom">🔍 点开放大</span>
+      <div class="dlabel">${note?`<span class="star">★</span>`:""}${esc(p.slot_label)}${sub?` · ${esc(sub)}`:""}</div>
+    </div>`;
+  }
+  if(!canEdit()) return `<div class="docslot empty"><div class="ico">🖼️</div><div class="lab">${esc(p.slot_label)} · 暂无</div></div>`;
+  return `<div class="docslot empty" data-pid="${p.id}"><div class="ico">${p.slot_type==="paste"?"🖼️":"📷"}</div><div class="lab">${esc(p.slot_label)} · 点击上传</div></div>`;
+}
 function hotelHTML(h){
   return `<div class="hotel">
+    ${canEdit()?`<button class="hedit" data-hid="${h.id}">编辑</button>`:""}
     <div class="hn">🏨 ${esc(h.name||"")}</div>
     <div class="hmeta"><span class="lab">地址</span><span>${esc(h.address||"—")}</span></div>
     <div class="hmeta"><span class="lab">房型</span><span>${esc(h.room_type||"—")}</span></div>
@@ -422,6 +457,47 @@ async function saveNote(){
 document.getElementById("notem-save").onclick=saveNote;
 document.getElementById("notem-cancel").onclick=()=>notem.classList.remove("on");
 notem.addEventListener("click",e=>{ if(e.target===notem) notem.classList.remove("on"); });
+
+/* ---------------- 通用文字编辑（内部提示等） ---------------- */
+const textm=document.getElementById("textm");
+let textmSave=null;
+function openTextEditor(title, value, onSave){
+  document.getElementById("textm-title").textContent=title;
+  document.getElementById("textm-text").value=value||"";
+  textmSave=onSave;
+  textm.classList.add("on");
+  setTimeout(()=>document.getElementById("textm-text").focus(),50);
+}
+document.getElementById("textm-cancel").onclick=()=>textm.classList.remove("on");
+document.getElementById("textm-save").onclick=async()=>{ const val=document.getElementById("textm-text").value.trim(); if(textmSave) await textmSave(val); textm.classList.remove("on"); };
+textm.addEventListener("click",e=>{ if(e.target===textm) textm.classList.remove("on"); });
+
+/* ---------------- 酒店编辑 ---------------- */
+const hotelm=document.getElementById("hotelm");
+let hotelEditing=null;
+function openHotelEditor(h, venueId){
+  hotelEditing={id:h.id, venueId};
+  document.getElementById("hm-name").value=h.name||"";
+  document.getElementById("hm-address").value=h.address||"";
+  document.getElementById("hm-room").value=h.room_type||"";
+  document.getElementById("hm-transit").value=h.nearest_transit||"";
+  document.getElementById("hm-travel").value=h.travel_time||"";
+  document.getElementById("hm-url").value=h.url||"";
+  document.getElementById("hm-intro").value=h.hotel_intro||"";
+  hotelm.classList.add("on");
+}
+document.getElementById("hm-cancel").onclick=()=>hotelm.classList.remove("on");
+document.getElementById("hm-save").onclick=async()=>{
+  if(!hotelEditing) return;
+  const g=id=>document.getElementById(id).value.trim();
+  const upd={ name:g("hm-name")||null, address:g("hm-address")||null, room_type:g("hm-room")||null,
+    nearest_transit:g("hm-transit")||null, travel_time:g("hm-travel")||null, url:g("hm-url")||null, hotel_intro:g("hm-intro")||null };
+  const {error}=await sb.from("venue_hotels").update(upd).eq("id",hotelEditing.id);
+  if(error){ toast("保存失败"); return; }
+  await logAct(hotelEditing.venueId,"编辑酒店信息", upd.name||"酒店");
+  hotelm.classList.remove("on"); toast("已保存"); renderDetail(hotelEditing.venueId);
+};
+hotelm.addEventListener("click",e=>{ if(e.target===hotelm) hotelm.classList.remove("on"); });
 
 /* ---------------- lightbox ---------------- */
 const lb=document.getElementById("lb");

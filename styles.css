@@ -91,10 +91,10 @@ a{color:inherit}
 .slot.empty .lab{font-size:11px;color:var(--sage-d);line-height:1.25;font-weight:600}
 .slot.empty .hint{font-size:9.5px;color:var(--muted);margin-top:3px}
 .slot.filled img{width:100%;height:100%;object-fit:cover}
-.slot .caption{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(43,60,55,.72));
-  color:#fff;font-size:10.5px;padding:16px 8px 6px;display:flex;justify-content:space-between;align-items:center;gap:5px;flex-wrap:nowrap}
-.slot .caption .lab{font-weight:600;flex:0 0 auto;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.slot .caption .cap{color:#d6ece2;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.slot .caption{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(43,60,55,.78));
+  color:#fff;font-size:10.5px;padding:18px 8px 6px;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:1px}
+.slot .caption .lab{font-weight:600;line-height:1.2;max-width:100%;word-break:break-word}
+.slot .caption .cap{color:#d6ece2;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .slot.uploading::after{content:"上传中…";position:absolute;inset:0;background:rgba(91,144,121,.72);color:#fff;
   display:flex;align-items:center;justify-content:center;font-size:12px}
 .slot.add{border:1.5px dashed var(--sage);background:var(--sage-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--sage-d)}
@@ -126,6 +126,38 @@ a{color:inherit}
 #notem textarea:focus{border-color:var(--sage)}
 #notem .nview{font-size:14px;line-height:1.7;color:var(--ink);white-space:pre-wrap;background:var(--sage-soft);border-radius:12px;padding:13px 14px;display:none}
 #notem .nacts{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+
+/* 通用文字 / 酒店编辑弹窗 */
+#textm,#hotelm{position:fixed;inset:0;background:rgba(40,54,49,.55);z-index:550;display:none;align-items:center;justify-content:center;padding:22px;overflow:auto}
+#textm.on,#hotelm.on{display:flex}
+#textm .nbox,#hotelm .nbox{background:#fff;border-radius:18px;padding:18px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(40,54,49,.3);max-height:90vh;overflow:auto}
+#textm .ntitle,#hotelm .ntitle{font-size:15px;font-weight:700;margin-bottom:11px;color:var(--ink)}
+#textm textarea,#hotelm textarea{width:100%;min-height:96px;border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;font-size:14px;font-family:inherit;outline:none;resize:vertical;background:#fbfdfc;line-height:1.6}
+#textm textarea:focus,#hotelm textarea:focus,#hotelm input:focus{border-color:var(--sage)}
+#hotelm .fl{display:block;font-size:11.5px;color:var(--muted);margin:11px 0 4px}
+#hotelm input{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px;font-family:inherit;outline:none;background:#fbfdfc}
+#textm .nacts,#hotelm .nacts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+
+/* 内部提示（仅编辑可见） */
+.intnote{background:#fff7e8;border:1px solid #f0dca6;border-radius:13px;padding:12px 14px;margin-top:12px}
+.intnote .ihd{font-size:12px;font-weight:700;color:#bd8a16;display:flex;align-items:center;gap:6px;margin-bottom:7px}
+.intnote .iedit{margin-left:auto;font-size:11px;color:var(--sage-d);background:#fff;border:1px solid #ecd9a3;padding:3px 11px;border-radius:8px}
+.intnote .ibody{font-size:13px;line-height:1.7;white-space:pre-wrap;color:#5b4a1e}
+.intnote .iempty{font-size:12.5px;color:#b79b52}
+
+/* 概览大图（住宿/餐饮表等，全宽可放大） */
+.slots.docs{grid-template-columns:1fr;gap:11px}
+.docslot{position:relative;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#fff;cursor:pointer}
+.docslot img{width:100%;height:auto;display:block;max-height:360px;object-fit:contain;background:#f6faf8}
+.docslot .dlabel{padding:9px 13px;font-size:13px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:6px;border-top:1px solid var(--line)}
+.docslot .dlabel .star{color:#e8a73a}
+.docslot .dzoom{position:absolute;right:9px;top:9px;background:rgba(255,255,255,.92);border-radius:8px;padding:3px 9px;font-size:11px;color:var(--sage-d);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.docslot.empty{border:1.5px dashed #bcd2c8;background:#f7fbf9;min-height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--sage-d);gap:4px;padding:14px}
+.docslot.empty .ico{font-size:22px}
+.docslot.empty .lab{font-size:12px;font-weight:600}
+
+/* 酒店编辑按钮 */
+.hotel .hedit{float:right;font-size:11px;color:var(--sage-d);background:var(--sage-soft);border:none;padding:4px 12px;border-radius:8px;margin-top:-2px}
 
 /* 项目 / 酒店 */
 .evrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}

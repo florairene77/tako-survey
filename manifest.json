@@ -1,0 +1,13 @@
+{
+  "name": "亚运后勤踏勘库",
+  "short_name": "后勤踏勘库",
+  "description": "2026 爱知·名古屋亚运会 HB 后勤组 · 场馆踏勘共享资料库",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f8f5",
+  "theme_color": "#7bab95",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

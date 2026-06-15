@@ -67,10 +67,32 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:
   <div class="foot">TAKO · 名古屋亚运会后勤统筹系统　<span class="heart">♥</span></div>
 </div>
 
+<!-- 加到桌面版 -->
+<div class="poster" id="p-install">
+  <div class="head">
+    <img class="oct" src="icon-512.png" alt="TAKO">
+    <h1>把 TAKO 放到桌面</h1>
+    <div class="sub">iPhone · 像 App 一样一点就开</div>
+    <div class="badge">🍎 苹果手机 · 用 Safari 浏览器</div>
+  </div>
+  <div class="body">
+    <div class="pw">网址　<b style="font-size:15px">florairene77.github.io/tako-survey</b></div>
+    <div class="step"><div class="n">1</div><div class="c"><div class="t">一定要用 Safari 打开</div><div class="d">复制网址，打开苹果自带的 <b>Safari</b> 浏览器粘贴进去。<br><span style="color:#c4756a">⚠️ 微信里打开的不行</span>——如果链接是在微信收到的，点右上角 <b>「⋯」→ 在 Safari 中打开</b>。</div></div></div>
+    <div class="step"><div class="n">2</div><div class="c"><div class="t">点底部「分享」按钮</div><div class="d">页面打开后，点屏幕<b>最下方中间</b>那个 <b>方框加向上箭头</b> 的图标 <span class="tag">⬆️ 分享</span>。</div></div></div>
+    <div class="step"><div class="n">3</div><div class="c"><div class="t">找「添加到主屏幕」</div><div class="d">在弹出的菜单里<b>往下滑</b>，找到 <span class="tag">➕ 添加到主屏幕</span> 点它。</div></div></div>
+    <div class="step"><div class="n">4</div><div class="c"><div class="t">点右上角「添加」</div><div class="d">名字默认就是 <b>TAKO</b>，直接点右上角 <b>「添加」</b>。</div></div></div>
+    <div class="step"><div class="n">5</div><div class="c"><div class="t">完成！</div><div class="d">桌面就出现一个 🐙 <b>TAKO</b> 小图标，以后点它直接全屏打开，跟 App 一模一样。</div></div></div>
+    <div class="tip">💡 如果以后更新了没看到变化，把桌面这个图标<b>长按删掉</b>，按上面步骤<b>重新添加</b>一次就是最新版。</div>
+  </div>
+  <div class="foot">TAKO · 名古屋亚运会后勤统筹系统　<span class="heart">♥</span></div>
+</div>
+
 <script>
   const only=new URLSearchParams(location.search).get('only');
-  if(only==='view'){ document.getElementById('p-edit').style.display='none'; document.body.style.padding='0'; document.body.style.background='#fff'; }
-  if(only==='edit'){ document.getElementById('p-view').style.display='none'; document.body.style.padding='0'; document.body.style.background='#fff'; }
-  if(only){ document.querySelectorAll('.poster').forEach(p=>{ if(p.style.display!=='none'){ p.style.boxShadow='none'; p.style.borderRadius='0'; } }); }
+  const keep={view:'p-view',edit:'p-edit',install:'p-install'}[only];
+  if(keep){
+    document.querySelectorAll('.poster').forEach(p=>{ if(p.id!==keep) p.style.display='none'; else { p.style.boxShadow='none'; p.style.borderRadius='0'; } });
+    document.body.style.padding='0'; document.body.style.background='#fff';
+  }
 </script>
 </body></html>

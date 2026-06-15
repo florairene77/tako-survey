@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=4";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=5";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -216,6 +216,7 @@ async function renderDetail(id){
 
   app.innerHTML = `
     <div class="detail-hero">
+      ${canEdit()?`<button class="hero-edit" id="hero-edit">编辑</button>`:""}
       <span class="code">${esc(v.c_code||"")}</span><span class="ttype ${v.team_type||'LIVE'}">${ttLabel(v.team_type)}</span>
       <h2>${esc(v.category||"")}</h2>
       <div class="jp">${esc(v.venue_name_jp||"")}</div>
@@ -273,12 +274,11 @@ async function renderDetail(id){
     </div>
 
     <div class="section">
-      <h3><span class="dot"></span>对应比赛项目${canEdit()?`<button class="sec-edit" id="add-event" style="margin-left:10px">＋添加</button>`:""}<span class="count">${events?.length||0}</span></h3>
-      ${(events&&events.length)? events.map(e=>`<div class="evrow" data-eid="${e.id}">
+      <h3><span class="dot"></span>对应比赛项目<span class="count">${events?.length||0}</span></h3>
+      ${(events&&events.length)? events.map(e=>`<div class="evrow">
         <span class="en">${esc(v.c_code||"")} · ${esc(e.name||"")}${e.name_en?` / ${esc(e.name_en)}`:""}${e.note?` / ${esc(e.note)}`:""}</span>
         <span class="es">${esc(e.schedule||"")}</span>
-        ${canEdit()?`<span class="evacts"><button data-act="edit">改</button><button data-act="mig">迁</button><button data-act="del" class="del">删</button></span>`:""}
-      </div>`).join("") : `<div class="muted-empty">${canEdit()?"还没有项目，点上面「＋添加」":"暂无"}</div>`}
+      </div>`).join("") : `<div class="muted-empty">暂无</div>`}
     </div>
 
     <div class="section">
@@ -337,7 +337,10 @@ async function renderDetail(id){
       ()=>openLightbox({kind:"slot",rec:get(),venueId:id}),
       ()=>openNote({kind:"slot",rec:get(),venueId:id}));
   });
-  // 基本信息编辑（仅编辑）
+  // 顶部概览编辑（绿色区，仅编辑）
+  const hEdit=app.querySelector("#hero-edit");
+  if(hEdit) hEdit.onclick=()=>openHeroEditor(v);
+  // 基本信息编辑（白色区，仅编辑）
   const vEdit=app.querySelector("#venue-edit");
   if(vEdit) vEdit.onclick=()=>openVenueEditor(v);
   // 内部提示编辑（仅编辑）
@@ -353,23 +356,15 @@ async function renderDetail(id){
   });
   const addHotelBtn=app.querySelector("#add-hotel");
   if(addHotelBtn) addHotelBtn.onclick=()=>openAddHotel(id);
-  // 酒店迁移
+  // 酒店 迁移 / 删除
   app.querySelectorAll(".hmig").forEach(btn=>{
     btn.onclick=(e)=>{ e.stopPropagation(); const h=(hotels||[]).find(x=>x.id===btn.dataset.hid); if(h) openMigrate("hotel",h,id); };
   });
-  // 比赛项目 增/改/迁/删
-  const addEvBtn=app.querySelector("#add-event");
-  if(addEvBtn) addEvBtn.onclick=()=>openEventEditor(null,id);
-  app.querySelectorAll(".evrow .evacts button").forEach(btn=>{
-    btn.onclick=async()=>{
-      const e=(events||[]).find(x=>x.id===btn.closest(".evrow").dataset.eid); if(!e) return;
-      const act=btn.dataset.act;
-      if(act==="edit") openEventEditor(e,id);
-      else if(act==="mig") openMigrate("event",e,id);
-      else if(act==="del"){ if(!confirm(`删除项目「${e.name}」？`)) return;
-        await sb.from("venue_events").delete().eq("id",e.id);
-        await logAct(id,"删除项目",e.name); toast("已删除"); maybeThank(); renderDetail(id); }
-    };
+  app.querySelectorAll(".hdel").forEach(btn=>{
+    btn.onclick=async(e)=>{ e.stopPropagation(); const h=(hotels||[]).find(x=>x.id===btn.dataset.hid); if(!h) return;
+      if(!confirm(`删除酒店「${h.name||""}」？`)) return;
+      await sb.from("venue_hotels").delete().eq("id",h.id);
+      await logAct(id,"删除酒店",h.name); toast("已删除"); maybeThank(); renderDetail(id); };
   });
   // 补充照片
   app.querySelectorAll(".slot[data-eid]").forEach(el=>{
@@ -441,7 +436,7 @@ function docSlotHTML(p){
 }
 function hotelHTML(h){
   return `<div class="hotel">
-    ${canEdit()?`<button class="hedit" data-hid="${h.id}">编辑</button><button class="hmig" data-hid="${h.id}">🔀 迁移</button>`:""}
+    ${canEdit()?`<span class="hacts"><button class="hedit" data-hid="${h.id}">改</button><button class="hmig" data-hid="${h.id}">迁</button><button class="hdel del" data-hid="${h.id}">删</button></span>`:""}
     <div class="hn">🏨 ${esc(h.name||"")}</div>
     <div class="hmeta"><span class="lab">地址</span><span>${esc(h.address||"—")}</span></div>
     <div class="hmeta"><span class="lab">房型</span><span>${esc(h.room_type||"—")}</span></div>
@@ -644,17 +639,41 @@ document.getElementById("am-save").onclick=async()=>{
 };
 
 /* ---------------- 编辑场馆基本信息 ---------------- */
+// 绿色区：项目概览（项目名/团队/C码/类型/车程/工期/人数）
+const herom=document.getElementById("herom");
+let heroEditing=null;
+function openHeroEditor(v){
+  heroEditing=v.id;
+  const set=(id,val)=>document.getElementById(id).value=val||"";
+  set("hr-cat",v.category); set("hr-team",v.team); set("hr-code",v.c_code);
+  document.getElementById("hr-type").value=v.team_type||"LIVE";
+  set("hr-travel",v.travel_time); set("hr-start",v.work_start); set("hr-end",v.work_end); set("hr-size",v.team_size);
+  herom.classList.add("on");
+}
+document.getElementById("hr-cancel").onclick=()=>herom.classList.remove("on");
+herom.addEventListener("click",e=>{ if(e.target===herom) herom.classList.remove("on"); });
+document.getElementById("hr-save").onclick=async()=>{
+  if(!heroEditing) return;
+  const g=id=>document.getElementById(id).value.trim();
+  const ws=g("hr-start")||null, we=g("hr-end")||null;
+  let days=null; if(ws&&we){ const d=Math.round((new Date(we)-new Date(ws))/86400000)+1; if(d>0) days=d; }
+  const upd={ category:g("hr-cat")||null, team:g("hr-team")||null, c_code:g("hr-code")||null,
+    team_type:document.getElementById("hr-type").value, travel_time:g("hr-travel")||null,
+    work_start:ws, work_end:we, work_days:days, team_size:g("hr-size")||null };
+  const {error}=await sb.from("venues").update(upd).eq("id",heroEditing);
+  if(error){ toast("保存失败"); return; }
+  await logAct(heroEditing,"编辑项目概览", upd.category||"概览");
+  herom.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(heroEditing);
+};
+
+// 白色区：基本信息（场馆名/地址/交通/停车/简介）
 const venuem=document.getElementById("venuem");
 let venueEditing=null;
 function openVenueEditor(v){
   venueEditing=v.id;
   const set=(id,val)=>document.getElementById(id).value=val||"";
-  set("vm-cat",v.category); set("vm-team",v.team); set("vm-code",v.c_code);
-  document.getElementById("vm-type").value=v.team_type||"LIVE";
-  set("vm-name",v.venue_name_jp); set("vm-addr",v.venue_address); set("vm-travel",v.travel_time);
-  set("vm-transit",v.nearest_transit); set("vm-parking",v.parking_note);
-  set("vm-start",v.work_start); set("vm-end",v.work_end); set("vm-size",v.team_size);
-  set("vm-intro",v.venue_intro);
+  set("vm-name",v.venue_name_jp); set("vm-addr",v.venue_address);
+  set("vm-transit",v.nearest_transit); set("vm-parking",v.parking_note); set("vm-intro",v.venue_intro);
   venuem.classList.add("on");
 }
 document.getElementById("vm-cancel").onclick=()=>venuem.classList.remove("on");
@@ -662,17 +681,11 @@ venuem.addEventListener("click",e=>{ if(e.target===venuem) venuem.classList.remo
 document.getElementById("vm-save").onclick=async()=>{
   if(!venueEditing) return;
   const g=id=>document.getElementById(id).value.trim();
-  const ws=g("vm-start")||null, we=g("vm-end")||null;
-  let days=null;
-  if(ws&&we){ const d=Math.round((new Date(we)-new Date(ws))/86400000)+1; if(d>0) days=d; }
-  const upd={ category:g("vm-cat")||null, team:g("vm-team")||null, c_code:g("vm-code")||null,
-    team_type:document.getElementById("vm-type").value, venue_name_jp:g("vm-name")||null,
-    venue_address:g("vm-addr")||null, travel_time:g("vm-travel")||null, nearest_transit:g("vm-transit")||null,
-    parking_note:g("vm-parking")||null, work_start:ws, work_end:we, work_days:days,
-    team_size:g("vm-size")||null, venue_intro:g("vm-intro")||null };
+  const upd={ venue_name_jp:g("vm-name")||null, venue_address:g("vm-addr")||null,
+    nearest_transit:g("vm-transit")||null, parking_note:g("vm-parking")||null, venue_intro:g("vm-intro")||null };
   const {error}=await sb.from("venues").update(upd).eq("id",venueEditing);
   if(error){ toast("保存失败"); return; }
-  await logAct(venueEditing,"编辑基本信息", upd.category||"场馆");
+  await logAct(venueEditing,"编辑基本信息", upd.venue_name_jp||"场馆");
   venuem.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(venueEditing);
 };
 

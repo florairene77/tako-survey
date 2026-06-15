@@ -235,15 +235,17 @@ a{color:inherit}
 .maplegend i{width:10px;height:10px;border-radius:50%;display:inline-block}
 
 /* 添加/编辑场馆弹窗 + 卡片 */
-#addm,#venuem{position:fixed;inset:0;background:rgba(40,54,49,.55);z-index:550;display:none;align-items:center;justify-content:center;padding:22px;overflow:auto}
-#addm.on,#venuem.on{display:flex}
-#addm .nbox,#venuem .nbox{background:#fff;border-radius:18px;padding:18px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(40,54,49,.3);max-height:90vh;overflow:auto}
-#addm .ntitle,#venuem .ntitle{font-size:16px;font-weight:700;margin-bottom:4px;color:var(--ink)}
-#addm .fl,#venuem .fl{display:block;font-size:11.5px;color:var(--muted);margin:11px 0 4px}
-#addm input,#addm select,#venuem input,#venuem select,#venuem textarea{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px 11px;font-size:14px;font-family:inherit;outline:none;background:#fbfdfc}
+#addm,#venuem,#herom{position:fixed;inset:0;background:rgba(40,54,49,.55);z-index:550;display:none;align-items:center;justify-content:center;padding:22px;overflow:auto}
+#addm.on,#venuem.on,#herom.on{display:flex}
+#addm .nbox,#venuem .nbox,#herom .nbox{background:#fff;border-radius:18px;padding:18px;width:100%;max-width:380px;box-shadow:0 20px 50px rgba(40,54,49,.3);max-height:90vh;overflow:auto}
+#addm .ntitle,#venuem .ntitle,#herom .ntitle{font-size:16px;font-weight:700;margin-bottom:4px;color:var(--ink)}
+#addm .fl,#venuem .fl,#herom .fl{display:block;font-size:11.5px;color:var(--muted);margin:11px 0 4px}
+#addm input,#addm select,#venuem input,#venuem select,#venuem textarea,#herom input,#herom select{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px 11px;font-size:14px;font-family:inherit;outline:none;background:#fbfdfc}
 #venuem textarea{min-height:70px;resize:vertical;line-height:1.6}
-#addm input:focus,#addm select:focus,#venuem input:focus,#venuem select:focus,#venuem textarea:focus{border-color:var(--sage)}
-#addm .nacts,#venuem .nacts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+#addm input:focus,#addm select:focus,#venuem input:focus,#venuem select:focus,#venuem textarea:focus,#herom input:focus,#herom select:focus{border-color:var(--sage)}
+#addm .nacts,#venuem .nacts,#herom .nacts{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+.detail-hero{position:relative}
+.hero-edit{position:absolute;right:16px;top:16px;font-size:11px;font-weight:600;color:var(--sage-d);background:rgba(255,255,255,.85);border:none;padding:5px 13px;border-radius:9px}
 .sec-edit{margin-left:auto;font-size:11px;font-weight:600;color:var(--sage-d);background:var(--sage-soft);border:none;padding:4px 12px;border-radius:8px}
 
 /* 项目/迁移弹窗 */
@@ -260,7 +262,11 @@ a{color:inherit}
 .evrow .evacts{display:inline-flex;gap:5px;margin-left:8px;flex:0 0 auto}
 .evrow .evacts button{font-size:11px;border:none;border-radius:7px;padding:3px 9px;background:var(--sage-soft);color:var(--sage-d);font-weight:600}
 .evrow .evacts button.del{background:#f6e3df;color:#c4756a}
-.hotel .hmig{font-size:11px;color:#6f6ab0;background:#ece9f4;border:none;padding:4px 11px;border-radius:8px;float:right;margin-right:6px;margin-top:-2px}
+.hotel{position:relative}
+.hacts{position:absolute;right:12px;top:12px;display:inline-flex;gap:5px}
+.hacts button{font-size:11px;border:none;border-radius:7px;padding:3px 10px;background:var(--sage-soft);color:var(--sage-d);font-weight:600}
+.hacts button.hmig{background:#ece9f4;color:#6f6ab0}
+.hacts button.del{background:#f6e3df;color:#c4756a}
 .vcard.addcard{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:188px;border:1.5px dashed var(--sage);background:var(--sage-soft);color:var(--sage-d);cursor:pointer;text-align:center}
 .vcard.addcard .plus{font-size:36px;line-height:1}
 .vcard.addcard .lab{font-size:13px;font-weight:700;margin-top:6px}

@@ -3,15 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>亚运后勤踏勘库</title>
+<title>TAKO 亚运后勤资源库</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7bab95">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="亚运后勤踏勘库">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<meta name="apple-mobile-web-app-title" content="TAKO">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/supabase.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -19,9 +20,9 @@
 <!-- 登录闸 -->
 <div id="gate">
   <div class="box">
-    <div class="badge">📣</div>
-    <h1>亚运后勤踏勘库</h1>
-    <p>HB 后勤组 · 内部共享</p>
+    <div class="badge">🐙</div>
+    <h1>TAKO</h1>
+    <p>亚运后勤资源库 · HB 内部共享</p>
     <input id="gate-pw" type="password" inputmode="text" placeholder="输入访问密码" autocomplete="off">
     <div class="err" id="gate-err"></div>
     <button id="gate-btn">进入</button>
@@ -33,10 +34,10 @@
 <div class="topbar">
   <div class="inner">
     <button class="back" id="backbtn" style="display:none">‹</button>
-    <div class="logo">📣</div>
+    <div class="logo">🐙</div>
     <div>
-      <div class="title">亚运后勤踏勘库</div>
-      <div class="sub">2026 爱知·名古屋亚运会 · HB 后勤组</div>
+      <div class="title">TAKO</div>
+      <div class="sub">亚运后勤资源库 · 场馆踏勘</div>
     </div>
     <span class="rolebadge" id="rolebadge"></span>
   </div>

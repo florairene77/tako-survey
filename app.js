@@ -1,7 +1,17 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js";
 
+const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Leaflet 默认标记图标指向本地 vendor 图片
+if(window.L){
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconUrl:"vendor/images/marker-icon.png",
+    iconRetinaUrl:"vendor/images/marker-icon-2x.png",
+    shadowUrl:"vendor/images/marker-shadow.png"
+  });
+}
 const app = document.getElementById("app");
 const backbtn = document.getElementById("backbtn");
 
@@ -512,20 +522,60 @@ function openLightbox(ctx){
   const note = noteOf(ctx).trim();
   let cap=label; if(preset) cap+=" · "+preset; if(note) cap+="\n📝 "+note;
   document.getElementById("lb-cap").textContent=cap;
-  // 按钮（仅编辑权限）
+  // 按钮（编辑权限 + 麦当劳彩蛋）
   let html="";
   if(canEdit()){
     html+=`<button id="lb-note">${note?"编辑备注":"加备注"}</button>`;
     html+=`<button id="lb-replace">替换这张</button>`;
     if(ctx.kind==="extra") html+=`<button id="lb-del" class="danger">删除</button>`;
   }
+  if(r.is_mcd) html+=`<button id="lb-mcd" class="mcd">🔊 麦门 BGM</button>`;
   lbActs.innerHTML=html;
   if(canEdit()){
     lbActs.querySelector("#lb-note").onclick=()=>{ lb.classList.remove("on"); openNote(ctx); };
     lbActs.querySelector("#lb-replace").onclick=replaceCur;
     const del=lbActs.querySelector("#lb-del"); if(del) del.onclick=deleteExtra;
   }
+  const mcd=lbActs.querySelector("#lb-mcd");
+  if(mcd) mcd.onclick=()=>playJingle(mcd);
   lb.classList.add("on");
+}
+
+/* ---------------- 麦当劳彩蛋：原创洗脑小调（Web Audio，约30秒） ---------------- */
+let jingleCtx=null, jingleStop=null;
+function tone(ctx,dest,freq,start,dur,type,vol){
+  const o=ctx.createOscillator(); o.type=type; o.frequency.value=freq;
+  const g=ctx.createGain();
+  g.gain.setValueAtTime(0.0001,start);
+  g.gain.linearRampToValueAtTime(vol,start+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0008,start+dur);
+  o.connect(g); g.connect(dest);
+  o.start(start); o.stop(start+dur+0.03);
+}
+function playJingle(btn){
+  if(jingleCtx){ stopJingle(); return; }   // 再点一次=停止
+  const ctx=new (window.AudioContext||window.webkitAudioContext)();
+  jingleCtx=ctx;
+  const master=ctx.createGain(); master.gain.value=0.16; master.connect(ctx.destination);
+  const step=0.19, total=30;
+  // 原创动机（C 大调五声、蹦跳感；非任何既有旋律）
+  const lead=[523.25,523.25,659.25,523.25, 587.33,587.33,440,0, 523.25,659.25,783.99,659.25, 698.46,587.33,523.25,0];
+  const bass=[130.81,0,164.81,0, 146.83,0,110,0, 130.81,0,196.00,0, 174.61,0,130.81,0];
+  let t=ctx.currentTime+0.06; const N=Math.ceil(total/step);
+  for(let n=0;n<N;n++){
+    const lf=lead[n%lead.length], bf=bass[n%bass.length];
+    if(lf) tone(ctx,master,lf,t,step*0.92,"square",0.45);
+    if(bf) tone(ctx,master,bf,t,step*0.92,"triangle",0.6);
+    t+=step;
+  }
+  jingleStop=setTimeout(stopJingle,total*1000+200);
+  if(btn){ btn.textContent="🎵 播放中…点此停止"; btn.classList.add("playing"); }
+  toast("🍟 麦门 BGM，约30秒～");
+}
+function stopJingle(){
+  if(jingleStop){ clearTimeout(jingleStop); jingleStop=null; }
+  if(jingleCtx){ try{ jingleCtx.close(); }catch(e){} jingleCtx=null; }
+  const b=document.getElementById("lb-mcd"); if(b){ b.textContent="🔊 麦门 BGM"; b.classList.remove("playing"); }
 }
 function replaceCur(){
   lb.classList.remove("on");
@@ -558,8 +608,8 @@ async function deleteExtra(){
   await logAct(lbCtx.venueId, "删除补充照片", "补充照片");
   lb.classList.remove("on"); toast("已删除"); renderDetail(lbCtx.venueId);
 }
-document.getElementById("lb-close").onclick=()=>lb.classList.remove("on");
-lb.addEventListener("click",e=>{ if(e.target===lb) lb.classList.remove("on"); });
+document.getElementById("lb-close").onclick=()=>{ stopJingle(); lb.classList.remove("on"); };
+lb.addEventListener("click",e=>{ if(e.target===lb){ stopJingle(); lb.classList.remove("on"); } });
 
 /* ---------------- 启动 ---------------- */
 route();

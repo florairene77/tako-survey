@@ -1,7 +1,7 @@
 {
-  "name": "亚运后勤踏勘库",
-  "short_name": "后勤踏勘库",
-  "description": "2026 爱知·名古屋亚运会 HB 后勤组 · 场馆踏勘共享资料库",
+  "name": "TAKO 亚运后勤资源库",
+  "short_name": "TAKO",
+  "description": "2026 爱知·名古屋亚运会 HB 后勤组 · 资源整合（场馆踏勘 / 车辆 / 司机）",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f4f8f5",

@@ -193,6 +193,9 @@ a{color:inherit}
 #lb .acts{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;justify-content:center}
 #lb .acts button{background:rgba(255,255,255,.16);color:#fff;border:none;padding:10px 18px;border-radius:11px;font-size:14px}
 #lb .acts button.danger{background:rgba(201,122,109,.5)}
+#lb .acts button.mcd{background:#ffc72c;color:#c8102e;font-weight:700}
+#lb .acts button.mcd.playing{background:#da291c;color:#fff;animation:mcdpulse .5s ease-in-out infinite alternate}
+@keyframes mcdpulse{from{transform:scale(1)}to{transform:scale(1.06)}}
 #lb .close{position:absolute;top:16px;right:18px;background:none;border:none;color:#fff;font-size:30px}
 
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--sage-d);color:#fff;

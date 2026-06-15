@@ -2,5 +2,6 @@
 export const SUPABASE_URL = "https://vzrrlugpvbigqbhfuvss.supabase.co";
 export const SUPABASE_KEY = "sb_publishable_b7baQespGjNqTWgSt_Bk1g_8ZvI6eMh";
 export const BUCKET = "venue-photos";
-// 共享密码（进入网站用，发群里即可；正式发布前可改更强的）
-export const SHARE_PASSWORD = "tako2026";
+// 双密码分权限（正式发布前可改更强的）
+export const EDIT_PASSWORD = "tako2026";   // 编辑权限：能传照片、加备注、改内容
+export const VIEW_PASSWORD = "tako-view";  // 只读权限：只能看，不能改

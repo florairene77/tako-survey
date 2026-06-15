@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, SHARE_PASSWORD } from "./config.js";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = document.getElementById("app");
@@ -7,12 +7,23 @@ const backbtn = document.getElementById("backbtn");
 
 /* ---------------- 登录 ---------------- */
 const gate = document.getElementById("gate");
-function unlocked(){ return sessionStorage.getItem("tako_ok") === "1"; }
+function unlocked(){ return !!sessionStorage.getItem("tako_role"); }
+function canEdit(){ return sessionStorage.getItem("tako_role") === "editor"; }
+function applyRoleBadge(){
+  const b=document.getElementById("rolebadge"); if(!b) return;
+  if(!unlocked()){ b.textContent=""; b.className="rolebadge"; return; }
+  if(canEdit()){ b.textContent="编辑模式"; b.className="rolebadge edit"; }
+  else { b.textContent="查看模式"; b.className="rolebadge view"; }
+}
 function tryUnlock(){
   const pw = document.getElementById("gate-pw").value.trim();
-  if(pw === SHARE_PASSWORD){
-    sessionStorage.setItem("tako_ok","1");
+  let role=null;
+  if(pw === EDIT_PASSWORD) role="editor";
+  else if(pw === VIEW_PASSWORD) role="viewer";
+  if(role){
+    sessionStorage.setItem("tako_role",role);
     gate.style.display="none";
+    applyRoleBadge();
     route();
   }else{
     document.getElementById("gate-err").textContent="密码不对，再试一次";
@@ -20,7 +31,7 @@ function tryUnlock(){
 }
 document.getElementById("gate-btn").onclick = tryUnlock;
 document.getElementById("gate-pw").addEventListener("keydown",e=>{ if(e.key==="Enter") tryUnlock(); });
-if(unlocked()) gate.style.display="none";
+if(unlocked()){ gate.style.display="none"; applyRoleBadge(); }
 
 /* 记住名字（踏勘说明署名 / 上传人） */
 function whoami(){
@@ -176,16 +187,17 @@ async function renderDetail(id){
 
     <div class="section">
       <h3><span class="dot"></span>照片资料（固定坑位）<span class="count">${filled}/${photos?.length||0} 已填</span></h3>
-      <div class="hint-line">点空坑位即可拍照/选图上传 · 点已有照片可加备注或替换</div>
+      <div class="hint-line">${canEdit()?"点空坑位即可拍照/选图上传 · 长按照片加备注、点开可替换":"点照片看大图与备注 · 长按也能看备注"}</div>
       ${GROUP_ORDER.filter(g=>groups[g]).map(g=>`
         <div class="slotgroup-title">${g}</div>
         <div class="slots">${groups[g].map(slotHTML).join("")}</div>
       `).join("")}
+      ${((extras&&extras.length)||canEdit())?`
       <div class="slotgroup-title">补充照片（随手拍 · 不限数量）</div>
       <div class="slots" id="extra-slots">
         ${(extras||[]).map(extraHTML).join("")}
-        <div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>
-      </div>
+        ${canEdit()?`<div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}
+      </div>`:""}
     </div>
 
     <div class="section">
@@ -200,11 +212,11 @@ async function renderDetail(id){
 
     <div class="section">
       <h3><span class="dot"></span>踏勘说明<span class="count">${logs?.length||0} 条</span></h3>
-      <div id="logs">${(logs&&logs.length)? logs.map(logHTML).join("") : `<div class="muted-empty">还没有记录，第一条由你来写 👇</div>`}</div>
-      <div class="logform">
+      <div id="logs">${(logs&&logs.length)? logs.map(logHTML).join("") : `<div class="muted-empty">${canEdit()?"还没有记录，第一条由你来写 👇":"还没有记录"}</div>`}</div>
+      ${canEdit()?`<div class="logform">
         <textarea id="log-txt" placeholder="补充这个场馆的踏勘情况，比如停车、动线、注意事项…"></textarea>
         <button class="btn" id="log-add">＋ 添加记录</button>
-      </div>
+      </div>`:""}
     </div>
     <div class="foot">${esc(v.c_code)} · 资料随踏勘持续更新</div>`;
 
@@ -221,23 +233,27 @@ async function renderDetail(id){
 
   // 固定坑位
   app.querySelectorAll(".slot[data-pid]").forEach(el=>{
-    el.onclick=()=>{
-      const p=(photos||[]).find(x=>x.id===el.dataset.pid);
-      if(p.storage_path) openLightbox({kind:"slot",rec:p,venueId:id});
-      else pickAndUpload(p, el, id);
-    };
+    const get=()=>(photos||[]).find(x=>x.id===el.dataset.pid);
+    if(!get().storage_path){ // 空坑位
+      if(canEdit()) el.onclick=()=>pickAndUpload(get(), el, id);
+      return;
+    }
+    bindPhoto(el,
+      ()=>openLightbox({kind:"slot",rec:get(),venueId:id}),
+      ()=>openNote({kind:"slot",rec:get(),venueId:id}));
   });
   // 补充照片
   app.querySelectorAll(".slot[data-eid]").forEach(el=>{
-    el.onclick=()=>{
-      const e=(extras||[]).find(x=>x.id===el.dataset.eid);
-      openLightbox({kind:"extra",rec:e,venueId:id});
-    };
+    const get=()=>(extras||[]).find(x=>x.id===el.dataset.eid);
+    bindPhoto(el,
+      ()=>openLightbox({kind:"extra",rec:get(),venueId:id}),
+      ()=>openNote({kind:"extra",rec:get(),venueId:id}));
   });
   const addEl=app.querySelector("#add-extra");
-  if(addEl) addEl.onclick=()=>addExtraPhoto(id, addEl);
-  // 踏勘说明
-  app.querySelector("#log-add").onclick=async()=>{
+  if(addEl && canEdit()) addEl.onclick=()=>addExtraPhoto(id, addEl);
+  // 踏勘说明（仅编辑权限可添加）
+  const logAdd=app.querySelector("#log-add");
+  if(logAdd) logAdd.onclick=async()=>{
     const txt=app.querySelector("#log-txt").value.trim();
     if(!txt){ toast("写点内容再添加"); return; }
     const author=whoami();
@@ -254,10 +270,17 @@ function fmtPeriod(v){
 }
 function slotHTML(p){
   if(p.storage_path){
-    return `<div class="slot filled" data-pid="${p.id}">
+    const note=(p.note||"").trim();
+    const strip = note ? `<span class="cap note">📝 ${esc(note)}</span>` : (p.caption?`<span class="cap">${esc(p.caption)}</span>`:"");
+    return `<div class="slot filled" data-pid="${p.id}"${note?` title="${esc(note)}"`:""}>
       <img loading="lazy" src="${pubUrl(p.storage_path,p.updated_at)}" alt="${esc(p.slot_label)}">
-      <div class="caption"><span class="lab">${esc(p.slot_label)}</span>${p.caption?`<span class="cap">${esc(p.caption)}</span>`:""}</div>
+      ${note?`<div class="notebadge">📝</div>`:""}
+      <div class="caption"><span class="lab">${esc(p.slot_label)}</span>${strip}</div>
     </div>`;
+  }
+  if(!canEdit()){
+    return `<div class="slot empty" data-pid="${p.id}">
+      <div class="ico">📷</div><div class="lab">${esc(p.slot_label)}</div><div class="hint">暂无照片</div></div>`;
   }
   return `<div class="slot empty" data-pid="${p.id}">
     <div class="ico">${p.slot_type==="paste"?"🖼️":"📷"}</div>
@@ -266,9 +289,11 @@ function slotHTML(p){
   </div>`;
 }
 function extraHTML(e){
-  return `<div class="slot filled" data-eid="${e.id}">
+  const note=(e.note||e.caption||"").trim(); // 兼容旧数据
+  return `<div class="slot filled" data-eid="${e.id}"${note?` title="${esc(note)}"`:""}>
     <img loading="lazy" src="${pubUrl(e.storage_path,e.created_at)}" alt="补充照片">
-    <div class="caption"><span class="lab">${e.caption?esc(e.caption):"补充照片"}</span></div>
+    ${note?`<div class="notebadge">📝</div>`:""}
+    <div class="caption"><span class="lab">${note?"📝 "+esc(note):"补充照片"}</span></div>
   </div>`;
 }
 function hotelHTML(h){
@@ -320,14 +345,59 @@ function addExtraPhoto(venueId, el){
       const key=`extra/${venueId}/${Date.now()}-${Math.round(performance.now())}.jpg`;
       const {error:upErr}=await sb.storage.from(BUCKET).upload(key,blob,{upsert:true,contentType:"image/jpeg"});
       if(upErr) throw upErr;
-      const note=(prompt("给这张照片加个备注（可留空）：")||"").trim();
-      const {error:dbErr}=await sb.from("extra_photos").insert({venue_id:venueId,storage_path:key,caption:note||null,uploaded_by:whoami()});
+      const note=(prompt("给这张照片加个备注（可留空，之后长按照片也能加）：")||"").trim();
+      const {error:dbErr}=await sb.from("extra_photos").insert({venue_id:venueId,storage_path:key,note:note||null,uploaded_by:whoami()});
       if(dbErr) throw dbErr;
       toast("已添加 ✓"); renderDetail(venueId);
     }catch(e){ console.error(e); toast("上传失败："+(e.message||e)); el.classList.remove("uploading"); }
   };
   input.click();
 }
+
+/* ---------------- 照片交互：短按看大图 / 长按看备注 ---------------- */
+function noteOf(ctx){ const r=ctx.rec; return (r.note || (ctx.kind==="extra"? r.caption : "") || ""); }
+function bindPhoto(el, onTap, onLong){
+  let timer=null, longFired=false;
+  const start=()=>{ longFired=false; timer=setTimeout(()=>{ longFired=true; onLong(); }, 480); };
+  const cancel=()=>{ clearTimeout(timer); };
+  el.addEventListener("touchstart",start,{passive:true});
+  el.addEventListener("touchend",cancel);
+  el.addEventListener("touchmove",cancel,{passive:true});
+  el.addEventListener("mousedown",start);
+  el.addEventListener("mouseup",cancel);
+  el.addEventListener("mouseleave",cancel);
+  el.addEventListener("contextmenu",e=>e.preventDefault());
+  el.addEventListener("click",e=>{ if(longFired){ e.preventDefault(); longFired=false; return; } onTap(); });
+}
+
+/* ---------------- 备注弹窗（长按触发） ---------------- */
+const notem=document.getElementById("notem");
+let noteCtx=null;
+function openNote(ctx){
+  noteCtx=ctx;
+  const note=noteOf(ctx).trim();
+  const editing=canEdit();
+  const ta=document.getElementById("notem-text");
+  const view=document.getElementById("notem-view");
+  document.getElementById("notem-title").textContent=editing?"编辑备注":"备注";
+  document.getElementById("notem-save").style.display=editing?"":"none";
+  document.getElementById("notem-cancel").textContent=editing?"取消":"关闭";
+  if(editing){ ta.style.display="block"; view.style.display="none"; ta.value=note; }
+  else{ ta.style.display="none"; view.style.display="block"; view.textContent=note||"（这张照片还没有备注）"; }
+  notem.classList.add("on");
+  if(editing) setTimeout(()=>ta.focus(),50);
+}
+async function saveNote(){
+  if(!noteCtx) return;
+  const val=document.getElementById("notem-text").value.trim();
+  const table=noteCtx.kind==="slot"?"venue_photos":"extra_photos";
+  const {error}=await sb.from(table).update({note:val||null}).eq("id",noteCtx.rec.id);
+  if(error){ toast("保存失败"); return; }
+  notem.classList.remove("on"); toast("备注已保存"); renderDetail(noteCtx.venueId);
+}
+document.getElementById("notem-save").onclick=saveNote;
+document.getElementById("notem-cancel").onclick=()=>notem.classList.remove("on");
+notem.addEventListener("click",e=>{ if(e.target===notem) notem.classList.remove("on"); });
 
 /* ---------------- lightbox ---------------- */
 const lb=document.getElementById("lb");
@@ -338,24 +408,24 @@ function openLightbox(ctx){
   const ver = ctx.kind==="slot"? r.updated_at : r.created_at;
   document.getElementById("lb-img").src=pubUrl(r.storage_path,ver);
   const label = ctx.kind==="slot"? r.slot_label : "补充照片";
-  document.getElementById("lb-cap").textContent=label+(r.caption?(" · "+r.caption):"");
-  // 按钮
-  let html=`<button id="lb-note">${r.caption?"编辑备注":"加备注"}</button>`;
-  html+=`<button id="lb-replace">替换这张</button>`;
-  if(ctx.kind==="extra") html+=`<button id="lb-del" class="danger">删除</button>`;
+  const preset = (ctx.kind==="slot" && r.caption) ? r.caption : "";
+  const note = noteOf(ctx).trim();
+  let cap=label; if(preset) cap+=" · "+preset; if(note) cap+="\n📝 "+note;
+  document.getElementById("lb-cap").textContent=cap;
+  // 按钮（仅编辑权限）
+  let html="";
+  if(canEdit()){
+    html+=`<button id="lb-note">${note?"编辑备注":"加备注"}</button>`;
+    html+=`<button id="lb-replace">替换这张</button>`;
+    if(ctx.kind==="extra") html+=`<button id="lb-del" class="danger">删除</button>`;
+  }
   lbActs.innerHTML=html;
-  lbActs.querySelector("#lb-note").onclick=editNote;
-  lbActs.querySelector("#lb-replace").onclick=replaceCur;
-  const del=lbActs.querySelector("#lb-del"); if(del) del.onclick=deleteExtra;
+  if(canEdit()){
+    lbActs.querySelector("#lb-note").onclick=()=>{ lb.classList.remove("on"); openNote(ctx); };
+    lbActs.querySelector("#lb-replace").onclick=replaceCur;
+    const del=lbActs.querySelector("#lb-del"); if(del) del.onclick=deleteExtra;
+  }
   lb.classList.add("on");
-}
-async function editNote(){
-  const r=lbCtx.rec;
-  const note=(prompt("备注：", r.caption||"")||"").trim();
-  const table=lbCtx.kind==="slot"?"venue_photos":"extra_photos";
-  const {error}=await sb.from(table).update({caption:note||null}).eq("id",r.id);
-  if(error){ toast("保存失败"); return; }
-  lb.classList.remove("on"); toast("备注已保存"); renderDetail(lbCtx.venueId);
 }
 function replaceCur(){
   lb.classList.remove("on");

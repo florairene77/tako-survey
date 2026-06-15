@@ -16,9 +16,10 @@
     <div class="badge">🏟️</div>
     <h1>亚运场馆踏勘资料库</h1>
     <p>HB 后勤组 · 内部共享</p>
-    <input id="gate-pw" type="password" inputmode="text" placeholder="输入共享密码" autocomplete="off">
+    <input id="gate-pw" type="password" inputmode="text" placeholder="输入访问密码" autocomplete="off">
     <div class="err" id="gate-err"></div>
     <button id="gate-btn">进入</button>
+    <div class="gate-tip">编辑用编辑密码 · 查看用查看密码</div>
   </div>
 </div>
 
@@ -31,6 +32,7 @@
       <div class="title">场馆踏勘资料库</div>
       <div class="sub">2026 爱知·名古屋亚运会 · HB 后勤组</div>
     </div>
+    <span class="rolebadge" id="rolebadge"></span>
   </div>
 </div>
 
@@ -42,6 +44,19 @@
   <img id="lb-img" src="" alt="">
   <div class="cap" id="lb-cap"></div>
   <div class="acts" id="lb-acts"></div>
+</div>
+
+<!-- 备注编辑/查看弹窗 -->
+<div id="notem">
+  <div class="nbox">
+    <div class="ntitle" id="notem-title">备注</div>
+    <textarea id="notem-text" placeholder="写下这张照片的备注，比如：这家便利店可订盒饭，营业 7:00–23:00，电话 052-xxx-xxxx"></textarea>
+    <div class="nview" id="notem-view"></div>
+    <div class="nacts">
+      <button class="btn ghost" id="notem-cancel">关闭</button>
+      <button class="btn" id="notem-save">保存备注</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>

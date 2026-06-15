@@ -143,10 +143,11 @@ async function renderHome(){
         <span><i style="background:#8a7bb0"></i>LIVE+ENG</span>
       </div>
       <div class="filters">${cats.map(c=>`<button class="chip ${c===active?'on':''}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
-      <div class="grid">${list.map(cardHTML).join("")}</div>
+      <div class="grid">${canEdit()?`<div class="vcard addcard" id="add-venue-card"><div class="plus">＋</div><div class="lab">添加场馆</div><div class="sub">未踏勘的项目点这里建</div></div>`:""}${list.map(cardHTML).join("")}</div>
       <div class="foot">内部资料 · 仅供 HB 后勤组使用</div>`;
     app.querySelectorAll(".chip").forEach(ch=>ch.onclick=()=>{ active=ch.dataset.c; draw(); });
-    app.querySelectorAll(".vcard").forEach(el=>el.onclick=()=>location.hash="#/venue/"+el.dataset.id);
+    app.querySelectorAll(".vcard:not(.addcard)").forEach(el=>el.onclick=()=>location.hash="#/venue/"+el.dataset.id);
+    const addc=app.querySelector("#add-venue-card"); if(addc) addc.onclick=openAddVenue;
     drawMap(list);
   }
   function cardHTML(v){
@@ -157,8 +158,9 @@ async function renderHome(){
     const pct = Math.round(fl/tot*100);
     return `<div class="vcard" data-id="${v.id}">
       <div class="thumb" style="${coverUrl?`background-image:url('${coverUrl}')`:''}">
-        <span class="code">${esc(v.c_code||"")}</span>
+        ${v.c_code?`<span class="code">${esc(v.c_code)}</span>`:""}
         <span class="ttype ${v.team_type||'LIVE'}">${ttLabel(v.team_type)}</span>
+        ${fl===0?`<span class="pending">🕓 待踏勘</span>`:""}
       </div>
       <div class="body">
         <div class="cat">${esc(v.category||v.venue_name_jp||"")}</div>
@@ -560,6 +562,41 @@ document.getElementById("hm-save").onclick=async()=>{
   hotelm.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(hotelEditing.venueId);
 };
 hotelm.addEventListener("click",e=>{ if(e.target===hotelm) hotelm.classList.remove("on"); });
+
+/* ---------------- 添加场馆 ---------------- */
+const addm=document.getElementById("addm");
+const ADD_SLOTS=[
+ ["route_map","概览","谷歌路线图（酒店→场馆）","paste",1],["lodging_table","概览","住宿信息表","paste",2],["dining_table","概览","餐饮信息统计表","paste",3],
+ ["venue_exterior","场馆","场馆外观","photo",4],["venue_map","场馆","场馆谷歌地图","paste",5],["venue_parking","场馆","上车点／大巴停车场","photo",6],
+ ["venue_surround_1","场馆","场馆周边①","photo",7],["venue_surround_2","场馆","场馆周边②","photo",8],["venue_surround_3","场馆","场馆周边③","photo",9],
+ ["hotel_exterior","酒店","酒店外观","photo",10],["hotel_map","酒店","酒店官网及周边地图","paste",11],["hotel_lobby","酒店","酒店大堂","photo",12],
+ ["hotel_surround_1","酒店","酒店周边①","photo",13],["hotel_surround_2","酒店","酒店周边②","photo",14],["hotel_surround_3","酒店","酒店周边③","photo",15],
+];
+function openAddVenue(){
+  ["am-cat","am-team","am-code","am-name","am-addr"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("am-type").value="LIVE";
+  addm.classList.add("on");
+  setTimeout(()=>document.getElementById("am-cat").focus(),50);
+}
+document.getElementById("am-cancel").onclick=()=>addm.classList.remove("on");
+addm.addEventListener("click",e=>{ if(e.target===addm) addm.classList.remove("on"); });
+document.getElementById("am-save").onclick=async()=>{
+  const cat=document.getElementById("am-cat").value.trim();
+  if(!cat){ toast("项目名称必填"); return; }
+  const vid=crypto.randomUUID();
+  const venue={ id:vid, category:cat,
+    team:document.getElementById("am-team").value.trim()||null,
+    c_code:document.getElementById("am-code").value.trim()||null,
+    venue_name_jp:document.getElementById("am-name").value.trim()||null,
+    venue_address:document.getElementById("am-addr").value.trim()||null,
+    team_type:document.getElementById("am-type").value, survey_done:false, sort_order:200 };
+  const {error}=await sb.from("venues").insert(venue);
+  if(error){ toast("建馆失败"); return; }
+  await sb.from("venue_photos").insert(ADD_SLOTS.map(s=>({venue_id:vid,slot_key:s[0],slot_group:s[1],slot_label:s[2],slot_type:s[3],storage_path:null,sort_order:s[4]})));
+  await logAct(vid,"新建场馆",cat);
+  addm.classList.remove("on"); toast("场馆已建好 ✓");
+  location.hash="#/venue/"+vid;
+};
 
 /* ---------------- lightbox ---------------- */
 const lb=document.getElementById("lb");

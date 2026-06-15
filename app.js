@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=3";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -278,8 +278,8 @@ async function renderDetail(id){
     </div>
 
     <div class="section">
-      <h3><span class="dot"></span>配套酒店<span class="count">${hotels?.length||0}</span></h3>
-      ${(hotels&&hotels.length)? hotels.map(hotelHTML).join("") : `<div class="muted-empty">暂无</div>`}
+      <h3><span class="dot"></span>配套酒店${canEdit()?`<button class="sec-edit" id="add-hotel" style="margin-left:10px">＋添加</button>`:""}<span class="count">${hotels?.length||0}</span></h3>
+      ${(hotels&&hotels.length)? hotels.map(hotelHTML).join("") : `<div class="muted-empty">${canEdit()?"还没有酒店，点上面「＋添加」录入":"暂无"}</div>`}
     </div>
 
     <div class="section">
@@ -347,6 +347,8 @@ async function renderDetail(id){
   app.querySelectorAll(".hedit").forEach(btn=>{
     btn.onclick=(e)=>{ e.stopPropagation(); const h=(hotels||[]).find(x=>x.id===btn.dataset.hid); if(h) openHotelEditor(h, id); };
   });
+  const addHotelBtn=app.querySelector("#add-hotel");
+  if(addHotelBtn) addHotelBtn.onclick=()=>openAddHotel(id);
   // 补充照片
   app.querySelectorAll(".slot[data-eid]").forEach(el=>{
     const get=()=>(extras||[]).find(x=>x.id===el.dataset.eid);
@@ -545,8 +547,16 @@ textm.addEventListener("click",e=>{ if(e.target===textm) textm.classList.remove(
 /* ---------------- 酒店编辑 ---------------- */
 const hotelm=document.getElementById("hotelm");
 let hotelEditing=null;
+function openAddHotel(venueId){
+  hotelEditing={id:null, venueId};
+  ["hm-name","hm-address","hm-room","hm-transit","hm-travel","hm-url","hm-intro"].forEach(i=>document.getElementById(i).value="");
+  document.querySelector("#hotelm .ntitle").textContent="添加酒店";
+  hotelm.classList.add("on");
+  setTimeout(()=>document.getElementById("hm-name").focus(),50);
+}
 function openHotelEditor(h, venueId){
   hotelEditing={id:h.id, venueId};
+  document.querySelector("#hotelm .ntitle").textContent="编辑酒店信息";
   document.getElementById("hm-name").value=h.name||"";
   document.getElementById("hm-address").value=h.address||"";
   document.getElementById("hm-room").value=h.room_type||"";
@@ -562,9 +572,16 @@ document.getElementById("hm-save").onclick=async()=>{
   const g=id=>document.getElementById(id).value.trim();
   const upd={ name:g("hm-name")||null, address:g("hm-address")||null, room_type:g("hm-room")||null,
     nearest_transit:g("hm-transit")||null, travel_time:g("hm-travel")||null, url:g("hm-url")||null, hotel_intro:g("hm-intro")||null };
-  const {error}=await sb.from("venue_hotels").update(upd).eq("id",hotelEditing.id);
-  if(error){ toast("保存失败"); return; }
-  await logAct(hotelEditing.venueId,"编辑酒店信息", upd.name||"酒店");
+  if(hotelEditing.id){
+    const {error}=await sb.from("venue_hotels").update(upd).eq("id",hotelEditing.id);
+    if(error){ toast("保存失败"); return; }
+    await logAct(hotelEditing.venueId,"编辑酒店信息", upd.name||"酒店");
+  } else {
+    upd.venue_id=hotelEditing.venueId; upd.sort_order=99;
+    const {error}=await sb.from("venue_hotels").insert(upd);
+    if(error){ toast("添加失败"); return; }
+    await logAct(hotelEditing.venueId,"添加酒店", upd.name||"酒店");
+  }
   hotelm.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(hotelEditing.venueId);
 };
 hotelm.addEventListener("click",e=>{ if(e.target===hotelm) hotelm.classList.remove("on"); });

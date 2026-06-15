@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--sage:#7bab95;--sage-d:#5b9079;--sage-soft:#e9f1ec;--sky-soft:#e7f1f3;--ink:#3f4d4a;--muted:#8a9b96;--line:#e8efeb}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:#dfe9e4;padding:20px;display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
+.poster{width:460px;background:#fff;border-radius:26px;overflow:hidden;box-shadow:0 10px 40px rgba(91,144,121,.18)}
+.head{background:linear-gradient(150deg,var(--sage-soft),var(--sky-soft));padding:26px 26px 22px;text-align:center;position:relative}
+.head .oct{width:84px;height:84px;border-radius:20px;object-fit:cover;margin:0 auto 10px;display:block;box-shadow:0 4px 14px rgba(91,144,121,.2)}
+.head h1{font-size:24px;color:var(--ink);letter-spacing:1px}
+.head .sub{font-size:13px;color:var(--sage-d);margin-top:5px;font-weight:600}
+.head .badge{display:inline-block;margin-top:12px;background:#fff;color:var(--sage-d);font-size:12px;font-weight:700;padding:5px 16px;border-radius:999px;box-shadow:0 2px 8px rgba(91,144,121,.15)}
+.body{padding:20px 24px 26px}
+.pw{background:var(--sage-soft);border-radius:14px;padding:13px 16px;margin-bottom:18px;text-align:center;font-size:14px;color:var(--ink)}
+.pw b{font-size:20px;color:var(--sage-d);letter-spacing:1px}
+.step{display:flex;gap:13px;margin-bottom:17px}
+.step .n{flex:0 0 30px;height:30px;border-radius:50%;background:var(--sage);color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center}
+.step .c{flex:1;padding-top:2px}
+.step .t{font-size:15px;font-weight:700;margin-bottom:3px}
+.step .d{font-size:13px;color:#5a6864;line-height:1.65}
+.step .d b{color:var(--sage-d)}
+.tag{display:inline-block;background:var(--sage-soft);color:var(--sage-d);font-size:11px;font-weight:600;padding:1px 8px;border-radius:6px;margin:0 2px}
+.tip{background:#fff7e8;border:1px solid #f0dca6;border-radius:13px;padding:13px 15px;margin-top:6px;font-size:13px;line-height:1.7;color:#7a5d1e}
+.tip b{color:#bd8a16}
+.foot{text-align:center;font-size:11px;color:var(--muted);padding:6px 0 18px}
+.heart{color:#ef9a8c}
+</style></head>
+<body>
+
+<!-- 只读版 -->
+<div class="poster" id="p-view">
+  <div class="head">
+    <img class="oct" src="icon-512.png" alt="TAKO">
+    <h1>TAKO 使用指南</h1>
+    <div class="sub">名古屋亚运会 · 后勤场馆信息</div>
+    <div class="badge">🔍 查看场馆 & 酒店详细信息</div>
+  </div>
+  <div class="body">
+    <div class="pw">打开链接，输入访问密码　<b>tako2026</b></div>
+    <div class="step"><div class="n">1</div><div class="c"><div class="t">进入 TAKO</div><div class="d">微信里点开链接，或桌面 🐙 图标。输入密码就进来了。</div></div></div>
+    <div class="step"><div class="n">2</div><div class="c"><div class="t">找到你负责的项目</div><div class="d">首页是<b>所有场馆</b>。上面的<b>地图</b>能看分布，<b>项目标签</b>能筛选（足球/排球…），点你负责的那张卡片。</div></div></div>
+    <div class="step"><div class="n">3</div><div class="c"><div class="t">一页看全这个场馆</div><div class="d">点进去从上到下都是：<br>· <b>项目概览</b>（团队/车程/工期/人数）<br>· <b>基本信息</b>（场馆名/地址/最近交通/停车）<br>· <b>照片资料</b>（场馆、酒店、周边环境，<b>点开能放大</b>）<br>· <b>对应比赛项目</b> & <b>配套酒店</b>（地址/房型/官网）<br>· <b>踏勘说明</b>（注意事项）</div></div></div>
+    <div class="step"><div class="n">4</div><div class="c"><div class="t">看大图</div><div class="d">任意照片点一下就能放大看清楚，住宿表、餐饮表也能点开。</div></div></div>
+    <div class="tip">📌 资料会随踏勘<b>持续更新</b>，随时打开都是最新的。看不到的场馆是还在踏勘中，完成后就会出现。</div>
+  </div>
+  <div class="foot">TAKO · 名古屋亚运会后勤统筹系统　<span class="heart">♥</span></div>
+</div>
+
+<!-- 编辑版 -->
+<div class="poster" id="p-edit">
+  <div class="head">
+    <img class="oct" src="icon-512.png" alt="TAKO">
+    <h1>TAKO 编辑指南</h1>
+    <div class="sub">名古屋亚运会 · 踏勘录入</div>
+    <div class="badge">✍️ 给场馆录入 & 更新信息</div>
+  </div>
+  <div class="body">
+    <div class="pw">输入编辑密码　<b>takoedit</b>　→　填你的名字</div>
+    <div class="step"><div class="n">1</div><div class="c"><div class="t">登录并留名</div><div class="d">输入编辑密码后，<b>每次都要填一次你的名字</b>。你的每一步操作都会署名记录，方便大家协作。</div></div></div>
+    <div class="step"><div class="n">2</div><div class="c"><div class="t">看已编辑好的项目</div><div class="d">和大家一样浏览场馆；编辑身份还能看到 <span class="tag">🔒 内部提示</span>（订餐电话、店长联系等画面外信息）。</div></div></div>
+    <div class="step"><div class="n">3</div><div class="c"><div class="t">填「待踏勘」的项目</div><div class="d">找到带 <span class="tag">🕓 待踏勘</span> 的场馆点进去：<br>· <b>绿色区「编辑」</b>→ 项目名/团队/车程/工期<br>· <b>白色「基本信息」编辑</b>→ 场馆名/地址/交通<br>· <b>配套酒店「＋添加」</b>→ 录酒店<br>· <b>照片坑位点一下</b>→ 直接拍照上传</div></div></div>
+    <div class="step"><div class="n">4</div><div class="c"><div class="t">添加全新项目</div><div class="d">首页最上面 <span class="tag">＋ 添加场馆</span>，填项目名建好，就去一格格填坑位。</div></div></div>
+    <div class="step"><div class="n">5</div><div class="c"><div class="t">踏勘完成 & 记录</div><div class="d">坑位填满后点 <b>「踏勘完成」</b>，会跳出谢谢你小章鱼 🐙。之后每次改动都进 <b>「编辑记录」</b>（谁/何时/改了什么）。</div></div></div>
+    <div class="tip">⚠️ <b>给照片加备注</b>时会问「是否对只读密码公开」：<br>· 公开 → 大家都能看到这条备注和 ★<br>· <b>仅编辑可见</b> → 内部信息（电话/秘密）选这个，只读的人看不到</div>
+  </div>
+  <div class="foot">TAKO · 名古屋亚运会后勤统筹系统　<span class="heart">♥</span></div>
+</div>
+
+<script>
+  const only=new URLSearchParams(location.search).get('only');
+  if(only==='view'){ document.getElementById('p-edit').style.display='none'; document.body.style.padding='0'; document.body.style.background='#fff'; }
+  if(only==='edit'){ document.getElementById('p-view').style.display='none'; document.body.style.padding='0'; document.body.style.background='#fff'; }
+  if(only){ document.querySelectorAll('.poster').forEach(p=>{ if(p.style.display!=='none'){ p.style.boxShadow='none'; p.style.borderRadius='0'; } }); }
+</script>
+</body></html>

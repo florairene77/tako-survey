@@ -40,6 +40,12 @@ function whoami(){
   return n;
 }
 
+/* 写一条编辑记录（失败不阻断主流程） */
+async function logAct(venueId, action, target){
+  try{ await sb.from("activity_log").insert({venue_id:venueId, who:whoami(), action, target:target||null}); }
+  catch(e){ /* 记录失败不影响主操作 */ }
+}
+
 /* ---------------- 工具 ---------------- */
 const toastEl = document.getElementById("toast");
 let toastT;
@@ -146,13 +152,14 @@ async function renderHome(){
 const GROUP_ORDER = ["概览","场馆","酒店"];
 async function renderDetail(id){
   app.innerHTML = `<div class="loading">加载场馆资料…</div>`;
-  const [{data:v},{data:photos},{data:hotels},{data:events},{data:logs},{data:extras}] = await Promise.all([
+  const [{data:v},{data:photos},{data:hotels},{data:events},{data:logs},{data:extras},{data:acts}] = await Promise.all([
     sb.from("venues").select("*").eq("id",id).single(),
     sb.from("venue_photos").select("*").eq("venue_id",id).order("sort_order"),
     sb.from("venue_hotels").select("*").eq("venue_id",id).order("sort_order"),
     sb.from("venue_events").select("*").eq("venue_id",id).order("sort_order"),
     sb.from("survey_logs").select("*").eq("venue_id",id).order("created_at",{ascending:false}),
     sb.from("extra_photos").select("*").eq("venue_id",id).order("created_at"),
+    sb.from("activity_log").select("*").eq("venue_id",id).order("created_at",{ascending:false}).limit(40),
   ]);
   if(!v){ app.innerHTML=`<div class="loading">场馆不存在</div>`; return; }
 
@@ -218,6 +225,13 @@ async function renderDetail(id){
         <button class="btn" id="log-add">＋ 添加记录</button>
       </div>`:""}
     </div>
+
+    <details class="section actlog">
+      <summary><span class="dot"></span>编辑记录<span class="count">${acts?.length||0} 条 · 点击展开</span></summary>
+      <div class="actlist">
+        ${(acts&&acts.length)? acts.map(actHTML).join("") : `<div class="muted-empty">还没有编辑记录</div>`}
+      </div>
+    </details>
     <div class="foot">${esc(v.c_code)} · 资料随踏勘持续更新</div>`;
 
   // 地图
@@ -259,6 +273,7 @@ async function renderDetail(id){
     const author=whoami();
     const {error}=await sb.from("survey_logs").insert({venue_id:id,author,content:txt});
     if(error){ toast("保存失败"); return; }
+    await logAct(id, "写了踏勘说明", null);
     toast("已添加"); renderDetail(id);
   };
 }
@@ -271,10 +286,10 @@ function fmtPeriod(v){
 function slotHTML(p){
   if(p.storage_path){
     const note=(p.note||"").trim();
-    const strip = note ? `<span class="cap note">📝 ${esc(note)}</span>` : (p.caption?`<span class="cap">${esc(p.caption)}</span>`:"");
-    return `<div class="slot filled" data-pid="${p.id}"${note?` title="${esc(note)}"`:""}>
+    const strip = note ? `<span class="cap note">${esc(note)}</span>` : (p.caption?`<span class="cap">${esc(p.caption)}</span>`:"");
+    return `<div class="slot filled${note?" hasnote":""}" data-pid="${p.id}"${note?` title="${esc(note)}"`:""}>
       <img loading="lazy" src="${pubUrl(p.storage_path,p.updated_at)}" alt="${esc(p.slot_label)}">
-      ${note?`<div class="notebadge">📝</div>`:""}
+      ${note?`<div class="notebadge">★</div>`:""}
       <div class="caption"><span class="lab">${esc(p.slot_label)}</span>${strip}</div>
     </div>`;
   }
@@ -290,10 +305,10 @@ function slotHTML(p){
 }
 function extraHTML(e){
   const note=(e.note||e.caption||"").trim(); // 兼容旧数据
-  return `<div class="slot filled" data-eid="${e.id}"${note?` title="${esc(note)}"`:""}>
+  return `<div class="slot filled${note?" hasnote":""}" data-eid="${e.id}"${note?` title="${esc(note)}"`:""}>
     <img loading="lazy" src="${pubUrl(e.storage_path,e.created_at)}" alt="补充照片">
-    ${note?`<div class="notebadge">📝</div>`:""}
-    <div class="caption"><span class="lab">${note?"📝 "+esc(note):"补充照片"}</span></div>
+    ${note?`<div class="notebadge">★</div>`:""}
+    <div class="caption"><span class="lab">补充照片</span>${note?`<span class="cap note">${esc(note)}</span>`:""}</div>
   </div>`;
 }
 function hotelHTML(h){
@@ -305,6 +320,11 @@ function hotelHTML(h){
     ${h.url?`<div class="hmeta"><span class="lab">官网</span><a href="${esc(h.url)}" target="_blank" rel="noopener" style="color:var(--accent)">打开官网 ↗</a></div>`:""}
     ${h.hotel_intro?`<div class="intro">${esc(h.hotel_intro)}</div>`:""}
   </div>`;
+}
+function actHTML(a){
+  const d=new Date(a.created_at);
+  const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  return `<div class="actrow"><span class="aw"><b>${esc(a.who||"某人")}</b> ${esc(a.action||"")}${a.target?` 〔${esc(a.target)}〕`:""}</span><span class="at">${ds}</span></div>`;
 }
 function logHTML(l){
   const d=new Date(l.created_at); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
@@ -318,6 +338,7 @@ function pickAndUpload(p, el){
   if(p.slot_type!=="paste") input.capture="environment"; // 拍照类直接调相机
   input.onchange=async()=>{
     const file=input.files[0]; if(!file) return;
+    const wasReplace=!!p.storage_path;
     el.classList.add("uploading");
     try{
       const blob=await compress(file);
@@ -326,7 +347,8 @@ function pickAndUpload(p, el){
       if(upErr) throw upErr;
       const {error:dbErr}=await sb.from("venue_photos").update({storage_path:path,uploaded_by:whoami(),updated_at:new Date().toISOString()}).eq("id",p.id);
       if(dbErr) throw dbErr;
-      toast("上传成功 ✓");
+      await logAct(p.venue_id, wasReplace?"替换照片":"上传照片", p.slot_label);
+      toast(wasReplace?"已替换 ✓":"上传成功 ✓");
       const id=p.venue_id; renderDetail(id);
     }catch(e){ console.error(e); toast("上传失败："+(e.message||e)); el.classList.remove("uploading"); }
   };
@@ -348,6 +370,7 @@ function addExtraPhoto(venueId, el){
       const note=(prompt("给这张照片加个备注（可留空，之后长按照片也能加）：")||"").trim();
       const {error:dbErr}=await sb.from("extra_photos").insert({venue_id:venueId,storage_path:key,note:note||null,uploaded_by:whoami()});
       if(dbErr) throw dbErr;
+      await logAct(venueId, "添加补充照片", note||"补充照片");
       toast("已添加 ✓"); renderDetail(venueId);
     }catch(e){ console.error(e); toast("上传失败："+(e.message||e)); el.classList.remove("uploading"); }
   };
@@ -393,6 +416,7 @@ async function saveNote(){
   const table=noteCtx.kind==="slot"?"venue_photos":"extra_photos";
   const {error}=await sb.from(table).update({note:val||null}).eq("id",noteCtx.rec.id);
   if(error){ toast("保存失败"); return; }
+  await logAct(noteCtx.venueId, "编辑备注", noteCtx.kind==="slot"?noteCtx.rec.slot_label:"补充照片");
   notem.classList.remove("on"); toast("备注已保存"); renderDetail(noteCtx.venueId);
 }
 document.getElementById("notem-save").onclick=saveNote;
@@ -443,6 +467,7 @@ function replaceExtra(e, venueId){
       const {error:upErr}=await sb.storage.from(BUCKET).upload(e.storage_path,blob,{upsert:true,contentType:"image/jpeg"});
       if(upErr) throw upErr;
       await sb.from("extra_photos").update({created_at:new Date().toISOString()}).eq("id",e.id);
+      await logAct(venueId, "替换补充照片", "补充照片");
       toast("已替换 ✓"); renderDetail(venueId);
     }catch(err){ toast("替换失败"); }
   };
@@ -454,6 +479,7 @@ async function deleteExtra(){
   await sb.storage.from(BUCKET).remove([e.storage_path]).catch(()=>{});
   const {error}=await sb.from("extra_photos").delete().eq("id",e.id);
   if(error){ toast("删除失败"); return; }
+  await logAct(lbCtx.venueId, "删除补充照片", "补充照片");
   lb.classList.remove("on"); toast("已删除"); renderDetail(lbCtx.venueId);
 }
 document.getElementById("lb-close").onclick=()=>lb.classList.remove("on");

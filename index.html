@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>亚运场馆交通踏勘 · 资料库</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- 登录闸 -->
+<div id="gate">
+  <div class="box">
+    <div class="badge">🏟️</div>
+    <h1>亚运场馆踏勘资料库</h1>
+    <p>HB 后勤组 · 内部共享</p>
+    <input id="gate-pw" type="password" inputmode="text" placeholder="输入共享密码" autocomplete="off">
+    <div class="err" id="gate-err"></div>
+    <button id="gate-btn">进入</button>
+  </div>
+</div>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <div class="inner">
+    <button class="back" id="backbtn" style="display:none">‹</button>
+    <div class="logo">🏟️</div>
+    <div>
+      <div class="title">场馆踏勘资料库</div>
+      <div class="sub">2026 爱知·名古屋亚运会 · HB 后勤组</div>
+    </div>
+  </div>
+</div>
+
+<div id="app" class="wrap"><div class="loading">加载中…</div></div>
+
+<!-- lightbox -->
+<div id="lb">
+  <button class="close" id="lb-close">×</button>
+  <img id="lb-img" src="" alt="">
+  <div class="cap" id="lb-cap"></div>
+  <div class="acts" id="lb-acts"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -101,6 +101,31 @@
   </div>
 </div>
 
+<!-- 编辑场馆基本信息弹窗 -->
+<div id="venuem">
+  <div class="nbox">
+    <div class="ntitle">编辑基本信息</div>
+    <label class="fl">项目名称</label><input id="vm-cat" type="text">
+    <label class="fl">执行团队 / 城市</label><input id="vm-team" type="text">
+    <label class="fl">C 码</label><input id="vm-code" type="text">
+    <label class="fl">类型</label>
+    <select id="vm-type"><option value="LIVE">LIVE</option><option value="ENG">ENG</option><option value="BOTH">LIVE+ENG</option></select>
+    <label class="fl">场馆名（日文）</label><input id="vm-name" type="text">
+    <label class="fl">场馆地址</label><input id="vm-addr" type="text">
+    <label class="fl">实测车程</label><input id="vm-travel" type="text">
+    <label class="fl">最近公共交通</label><input id="vm-transit" type="text">
+    <label class="fl">停车说明</label><input id="vm-parking" type="text">
+    <label class="fl">工作区间 开始</label><input id="vm-start" type="date">
+    <label class="fl">工作区间 结束</label><input id="vm-end" type="date">
+    <label class="fl">团队人数</label><input id="vm-size" type="text">
+    <label class="fl">场馆简要介绍（前台所有人可见）</label><textarea id="vm-intro"></textarea>
+    <div class="nacts">
+      <button class="btn ghost" id="vm-cancel">取消</button>
+      <button class="btn" id="vm-save">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 添加场馆弹窗 -->
 <div id="addm">
   <div class="nbox">

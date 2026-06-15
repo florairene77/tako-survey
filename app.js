@@ -228,7 +228,7 @@ async function renderDetail(id){
     </div>
 
     <div class="section">
-      <h3><span class="dot"></span>基本信息</h3>
+      <h3><span class="dot"></span>基本信息${canEdit()?`<button class="sec-edit" id="venue-edit">编辑</button>`:""}</h3>
       <div class="hotel" style="margin-top:0">
         <div class="hmeta"><span class="lab">场馆</span><span>${esc(v.venue_name_jp||"")}</span></div>
         <div class="hmeta"><span class="lab">地址</span><span>${esc(v.venue_address||"—")}</span></div>
@@ -333,6 +333,9 @@ async function renderDetail(id){
       ()=>openLightbox({kind:"slot",rec:get(),venueId:id}),
       ()=>openNote({kind:"slot",rec:get(),venueId:id}));
   });
+  // 基本信息编辑（仅编辑）
+  const vEdit=app.querySelector("#venue-edit");
+  if(vEdit) vEdit.onclick=()=>openVenueEditor(v);
   // 内部提示编辑（仅编辑）
   const intEdit=app.querySelector("#int-edit");
   if(intEdit) intEdit.onclick=()=>openTextEditor("内部提示（仅编辑可见）", v.internal_note||"", async(val)=>{
@@ -599,6 +602,39 @@ document.getElementById("am-save").onclick=async()=>{
   await logAct(vid,"新建场馆",cat);
   addm.classList.remove("on"); toast("场馆已建好 ✓");
   location.hash="#/venue/"+vid;
+};
+
+/* ---------------- 编辑场馆基本信息 ---------------- */
+const venuem=document.getElementById("venuem");
+let venueEditing=null;
+function openVenueEditor(v){
+  venueEditing=v.id;
+  const set=(id,val)=>document.getElementById(id).value=val||"";
+  set("vm-cat",v.category); set("vm-team",v.team); set("vm-code",v.c_code);
+  document.getElementById("vm-type").value=v.team_type||"LIVE";
+  set("vm-name",v.venue_name_jp); set("vm-addr",v.venue_address); set("vm-travel",v.travel_time);
+  set("vm-transit",v.nearest_transit); set("vm-parking",v.parking_note);
+  set("vm-start",v.work_start); set("vm-end",v.work_end); set("vm-size",v.team_size);
+  set("vm-intro",v.venue_intro);
+  venuem.classList.add("on");
+}
+document.getElementById("vm-cancel").onclick=()=>venuem.classList.remove("on");
+venuem.addEventListener("click",e=>{ if(e.target===venuem) venuem.classList.remove("on"); });
+document.getElementById("vm-save").onclick=async()=>{
+  if(!venueEditing) return;
+  const g=id=>document.getElementById(id).value.trim();
+  const ws=g("vm-start")||null, we=g("vm-end")||null;
+  let days=null;
+  if(ws&&we){ const d=Math.round((new Date(we)-new Date(ws))/86400000)+1; if(d>0) days=d; }
+  const upd={ category:g("vm-cat")||null, team:g("vm-team")||null, c_code:g("vm-code")||null,
+    team_type:document.getElementById("vm-type").value, venue_name_jp:g("vm-name")||null,
+    venue_address:g("vm-addr")||null, travel_time:g("vm-travel")||null, nearest_transit:g("vm-transit")||null,
+    parking_note:g("vm-parking")||null, work_start:ws, work_end:we, work_days:days,
+    team_size:g("vm-size")||null, venue_intro:g("vm-intro")||null };
+  const {error}=await sb.from("venues").update(upd).eq("id",venueEditing);
+  if(error){ toast("保存失败"); return; }
+  await logAct(venueEditing,"编辑基本信息", upd.category||"场馆");
+  venuem.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(venueEditing);
 };
 
 /* ---------------- lightbox ---------------- */

@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=5";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=6";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -114,13 +114,21 @@ function route(){
 const CAT_ALL = "全部";
 const TTCOLOR = { LIVE:"#7bab95", ENG:"#e08a5d", BOTH:"#8a7bb0" };
 function ttLabel(t){ return t==="ENG"?"ENG":t==="BOTH"?"LIVE+ENG":"LIVE"; }
+const VIEWER_MIN_FILLED = 10;   // 只读用户：踏勘完成 或 至少填了这么多坑位才可见
+function viewerCanSee(filled, surveyDone){ return surveyDone || filled>=VIEWER_MIN_FILLED; }
 let homeMap;
 async function renderHome(){
   app.innerHTML = `<div class="loading">加载场馆…</div>`;
-  const { data:venues, error } = await sb.from("venues")
+  const { data:rawVenues, error } = await sb.from("venues")
     .select("*, venue_photos(storage_path)")
     .order("sort_order");
   if(error){ app.innerHTML=`<div class="loading">读取失败：${esc(error.message)}</div>`; return; }
+
+  // 只读用户：只看到已踏勘完成 / 大部分填好的场馆，未踏勘的隐藏
+  const venues = canEdit() ? rawVenues : rawVenues.filter(v=>{
+    const filled=(v.venue_photos||[]).filter(p=>p.storage_path).length;
+    return viewerCanSee(filled, v.survey_done);
+  });
 
   const cats = [CAT_ALL, ...Array.from(new Set(venues.map(v=>v.category).filter(Boolean)))];
   let active = CAT_ALL;
@@ -213,6 +221,10 @@ async function renderDetail(id){
   const total=photos?.length||0;
   const pct = total ? Math.round(filled/total*100) : 0;
   VENUE_DONE = !!v.survey_done;
+  // 只读用户不能直接看未公开（未踏勘）的场馆
+  if(!canEdit() && !viewerCanSee(filled, v.survey_done)){
+    app.innerHTML=`<div class="loading">🔒 该场馆还在踏勘中，暂未公开<br><br><span style="font-size:13px">踏勘完成后即可查看</span></div>`; return;
+  }
 
   app.innerHTML = `
     <div class="detail-hero">
@@ -395,7 +407,7 @@ function fmtPeriod(v){
 }
 function slotHTML(p){
   if(p.storage_path){
-    const note=(p.note||"").trim();
+    const note=(canEdit()||p.note_public!==false) ? (p.note||"").trim() : "";
     const strip = note ? `<span class="cap note">${esc(note)}</span>` : (p.caption?`<span class="cap">${esc(p.caption)}</span>`:"");
     return `<div class="slot filled${note?" hasnote":""}" data-pid="${p.id}"${note?` title="${esc(note)}"`:""}>
       <img loading="lazy" src="${pubUrl(p.storage_path,p.updated_at)}" alt="${esc(p.slot_label)}">
@@ -414,7 +426,7 @@ function slotHTML(p){
   </div>`;
 }
 function extraHTML(e){
-  const note=(e.note||e.caption||"").trim(); // 兼容旧数据
+  const note=(canEdit()||e.note_public!==false) ? (e.note||e.caption||"").trim() : ""; // 只读看私密备注=隐藏
   return `<div class="slot filled${note?" hasnote":""}" data-eid="${e.id}"${note?` title="${esc(note)}"`:""}>
     <img loading="lazy" src="${pubUrl(e.storage_path,e.created_at)}" alt="补充照片">
     ${note?`<div class="notebadge">★</div>`:""}
@@ -492,7 +504,8 @@ function addExtraPhoto(venueId, el){
       const {error:upErr}=await sb.storage.from(BUCKET).upload(key,blob,{upsert:true,contentType:"image/jpeg"});
       if(upErr) throw upErr;
       const note=(prompt("给这张照片加个备注（可留空，之后长按照片也能加）：")||"").trim();
-      const {error:dbErr}=await sb.from("extra_photos").insert({venue_id:venueId,storage_path:key,note:note||null,uploaded_by:whoami()});
+      let pub=true; if(note){ pub=confirm("这条备注要让「只读密码」的人也看到吗？\n确定=公开　取消=仅编辑可见"); }
+      const {error:dbErr}=await sb.from("extra_photos").insert({venue_id:venueId,storage_path:key,note:note||null,note_public:pub,uploaded_by:whoami()});
       if(dbErr) throw dbErr;
       await logAct(venueId, "添加补充照片", note||"补充照片");
       toast("已添加 ✓"); maybeThank(); renderDetail(venueId);
@@ -522,7 +535,7 @@ const notem=document.getElementById("notem");
 let noteCtx=null;
 function openNote(ctx){
   noteCtx=ctx;
-  const note=noteOf(ctx).trim();
+  const note=(canEdit()||ctx.rec.note_public!==false) ? noteOf(ctx).trim() : "";
   const editing=canEdit();
   const ta=document.getElementById("notem-text");
   const view=document.getElementById("notem-view");
@@ -538,10 +551,12 @@ async function saveNote(){
   if(!noteCtx) return;
   const val=document.getElementById("notem-text").value.trim();
   const table=noteCtx.kind==="slot"?"venue_photos":"extra_photos";
-  const {error}=await sb.from(table).update({note:val||null}).eq("id",noteCtx.rec.id);
+  let pub=true;
+  if(val){ pub=confirm("这条备注要让「只读密码」的人也看到吗？\n\n确定 = 公开（只读也能看到这条备注和 ★ 提示）\n取消 = 仅编辑可见（只读看不到星标和备注）"); }
+  const {error}=await sb.from(table).update({note:val||null, note_public:pub}).eq("id",noteCtx.rec.id);
   if(error){ toast("保存失败"); return; }
-  await logAct(noteCtx.venueId, "编辑备注", noteCtx.kind==="slot"?noteCtx.rec.slot_label:"补充照片");
-  notem.classList.remove("on"); toast("备注已保存"); maybeThank(); renderDetail(noteCtx.venueId);
+  await logAct(noteCtx.venueId, "编辑备注"+(val?(pub?"(公开)":"(仅编辑)"):""), noteCtx.kind==="slot"?noteCtx.rec.slot_label:"补充照片");
+  notem.classList.remove("on"); toast(val?(pub?"备注已保存（公开）":"备注已保存（仅编辑可见）"):"备注已清空"); maybeThank(); renderDetail(noteCtx.venueId);
 }
 document.getElementById("notem-save").onclick=saveNote;
 document.getElementById("notem-cancel").onclick=()=>notem.classList.remove("on");
@@ -758,7 +773,7 @@ function openLightbox(ctx){
   document.getElementById("lb-img").src=pubUrl(r.storage_path,ver);
   const label = ctx.kind==="slot"? r.slot_label : "补充照片";
   const preset = (ctx.kind==="slot" && r.caption) ? r.caption : "";
-  const note = noteOf(ctx).trim();
+  const note = (canEdit()||r.note_public!==false) ? noteOf(ctx).trim() : "";
   let cap=label; if(preset) cap+=" · "+preset; if(note) cap+="\n📝 "+note;
   document.getElementById("lb-cap").textContent=cap;
   // 按钮（编辑权限 + 麦当劳彩蛋）

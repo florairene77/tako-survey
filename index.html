@@ -22,10 +22,16 @@
   <div class="box">
     <img class="gate-logo" src="logo-full.png" alt="TAKO 名古屋亚运会后勤统筹系统">
     <p>HB 后勤组 · 内部共享</p>
-    <input id="gate-pw" type="password" inputmode="text" placeholder="输入访问密码" autocomplete="off">
-    <div class="err" id="gate-err"></div>
-    <button id="gate-btn">进入</button>
-    <div class="gate-tip">编辑用编辑密码 · 查看用查看密码</div>
+    <div id="gate-step-pw">
+      <input id="gate-pw" type="password" inputmode="text" placeholder="输入访问密码" autocomplete="off">
+      <div class="err" id="gate-err"></div>
+      <button id="gate-btn">进入</button>
+    </div>
+    <div id="gate-step-name" style="display:none">
+      <input id="gate-name" type="text" placeholder="编辑者名字  eg：麦当劳汉堡" autocomplete="off">
+      <div class="err" id="gate-name-err"></div>
+      <button id="gate-name-btn">开始踏勘</button>
+    </div>
   </div>
 </div>
 
@@ -92,6 +98,14 @@
       <button class="btn ghost" id="hm-cancel">取消</button>
       <button class="btn" id="hm-save">保存</button>
     </div>
+  </div>
+</div>
+
+<!-- 谢谢你小章鱼 -->
+<div id="thankyou">
+  <div class="ty-card">
+    <img src="thankyou.png" alt="谢谢你">
+    <div class="ty-sub">踏勘成果已记录 · 辛苦啦</div>
   </div>
 </div>
 

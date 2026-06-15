@@ -25,23 +25,44 @@ function applyRoleBadge(){
   if(canEdit()){ b.textContent="编辑模式"; b.className="rolebadge edit"; }
   else { b.textContent="查看模式"; b.className="rolebadge view"; }
 }
+function enterApp(){ gate.style.display="none"; applyRoleBadge(); route(); }
 function tryUnlock(){
   const pw = document.getElementById("gate-pw").value.trim();
   let role=null;
   if(pw === EDIT_PASSWORD) role="editor";
   else if(pw === VIEW_PASSWORD) role="viewer";
-  if(role){
-    sessionStorage.setItem("tako_role",role);
-    gate.style.display="none";
-    applyRoleBadge();
-    route();
-  }else{
-    document.getElementById("gate-err").textContent="密码不对，再试一次";
+  if(!role){ document.getElementById("gate-err").textContent="密码不对，再试一次"; return; }
+  sessionStorage.setItem("tako_role",role);
+  if(role==="editor" && !localStorage.getItem("tako_name")){
+    document.getElementById("gate-step-pw").style.display="none";
+    document.getElementById("gate-step-name").style.display="";
+    setTimeout(()=>document.getElementById("gate-name").focus(),60);
+  } else {
+    enterApp();
   }
+}
+function submitName(){
+  const n=(document.getElementById("gate-name").value||"").trim();
+  if(!n){ document.getElementById("gate-name-err").textContent="填个名字吧，同事好知道是谁传的"; return; }
+  localStorage.setItem("tako_name", n);
+  enterApp();
 }
 document.getElementById("gate-btn").onclick = tryUnlock;
 document.getElementById("gate-pw").addEventListener("keydown",e=>{ if(e.key==="Enter") tryUnlock(); });
+document.getElementById("gate-name-btn").onclick = submitName;
+document.getElementById("gate-name").addEventListener("keydown",e=>{ if(e.key==="Enter") submitName(); });
 if(unlocked()){ gate.style.display="none"; applyRoleBadge(); }
+
+/* 谢谢你小章鱼：渐显→停留~1秒→渐隐 */
+let _thankT=null;
+function thankYou(){
+  const el=document.getElementById("thankyou");
+  el.classList.add("show");
+  clearTimeout(_thankT);
+  _thankT=setTimeout(()=>el.classList.remove("show"), 1450);
+}
+let VENUE_DONE=false;
+function maybeThank(){ if(VENUE_DONE) thankYou(); }
 
 /* 记住名字（踏勘说明署名 / 上传人） */
 function whoami(){
@@ -88,6 +109,8 @@ function route(){
 
 /* ---------------- 首页 ---------------- */
 const CAT_ALL = "全部";
+const TTCOLOR = { LIVE:"#7bab95", ENG:"#e08a5d", BOTH:"#8a7bb0" };
+function ttLabel(t){ return t==="ENG"?"ENG":t==="BOTH"?"LIVE+ENG":"LIVE"; }
 let homeMap;
 async function renderHome(){
   app.innerHTML = `<div class="loading">加载场馆…</div>`;
@@ -114,6 +137,11 @@ async function renderHome(){
         </div>
       </div>
       <div id="map"></div>
+      <div class="maplegend">
+        <span><i style="background:#7bab95"></i>LIVE</span>
+        <span><i style="background:#e08a5d"></i>ENG</span>
+        <span><i style="background:#8a7bb0"></i>LIVE+ENG</span>
+      </div>
       <div class="filters">${cats.map(c=>`<button class="chip ${c===active?'on':''}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
       <div class="grid">${list.map(cardHTML).join("")}</div>
       <div class="foot">内部资料 · 仅供 HB 后勤组使用</div>`;
@@ -130,6 +158,7 @@ async function renderHome(){
     return `<div class="vcard" data-id="${v.id}">
       <div class="thumb" style="${coverUrl?`background-image:url('${coverUrl}')`:''}">
         <span class="code">${esc(v.c_code||"")}</span>
+        <span class="ttype ${v.team_type||'LIVE'}">${ttLabel(v.team_type)}</span>
       </div>
       <div class="body">
         <div class="cat">${esc(v.category||v.venue_name_jp||"")}</div>
@@ -147,9 +176,9 @@ async function renderHome(){
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap",maxZoom:18}).addTo(homeMap);
       const marks=[];
       pts.forEach(v=>{
-        const mk=L.marker([v.lat,v.lng]).addTo(homeMap)
-          .bindPopup(`<b>${esc(v.c_code)} ${esc(v.category||"")}</b><br>${esc(v.venue_name_jp||"")}`);
-        mk.on("click",()=>{});
+        const color = TTCOLOR[v.team_type] || TTCOLOR.LIVE;
+        L.circleMarker([v.lat,v.lng],{radius:9,fillColor:color,color:"#fff",weight:2.5,fillOpacity:1}).addTo(homeMap)
+          .bindPopup(`<b>${esc(v.c_code)} ${esc(v.category||"")}</b><br>${esc(v.venue_name_jp||"")} · ${ttLabel(v.team_type)}`);
         marks.push([v.lat,v.lng]);
       });
       if(marks.length) homeMap.fitBounds(marks,{padding:[40,40],maxZoom:13});
@@ -176,10 +205,13 @@ async function renderDetail(id){
   const groups={};
   (photos||[]).forEach(p=>{ (groups[p.slot_group]=groups[p.slot_group]||[]).push(p); });
   const filled=(photos||[]).filter(p=>p.storage_path).length;
+  const total=photos?.length||0;
+  const pct = total ? Math.round(filled/total*100) : 0;
+  VENUE_DONE = !!v.survey_done;
 
   app.innerHTML = `
     <div class="detail-hero">
-      <span class="code">${esc(v.c_code||"")}</span>
+      <span class="code">${esc(v.c_code||"")}</span><span class="ttype ${v.team_type||'LIVE'}">${ttLabel(v.team_type)}</span>
       <h2>${esc(v.category||"")}</h2>
       <div class="jp">${esc(v.venue_name_jp||"")}</div>
       <div class="kv">
@@ -225,6 +257,14 @@ async function renderDetail(id){
         ${(extras||[]).map(extraHTML).join("")}
         ${canEdit()?`<div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}
       </div>`:""}
+
+      <div class="progress-wrap">
+        <div class="ptitle">📋 踏勘进度 · ${filled}/${total} 个坑位已填</div>
+        <div class="pbar${(total&&filled>=total)?' full':''}"><i data-pct="${pct}"></i></div>
+        ${canEdit()?`<div class="done-row">${v.survey_done
+          ? `<span class="done-badge">✓ 踏勘已完成</span>`
+          : `<button class="done-btn" id="survey-done">踏勘完成</button>`}</div>`:""}
+      </div>
     </div>
 
     <div class="section">
@@ -265,6 +305,18 @@ async function renderDetail(id){
     setTimeout(()=>m.invalidateSize(),250);
   },60);
 
+  // 进度条加载动画
+  setTimeout(()=>{ const bar=app.querySelector(".pbar i"); if(bar) bar.style.width=(bar.dataset.pct||0)+"%"; },120);
+  // 踏勘完成
+  const doneBtn=app.querySelector("#survey-done");
+  if(doneBtn) doneBtn.onclick=async()=>{
+    if(!confirm("确认这个场馆踏勘完成了吗？")) return;
+    const {error}=await sb.from("venues").update({survey_done:true}).eq("id",id);
+    if(error){ toast("保存失败"); return; }
+    await logAct(id,"标记踏勘完成",null);
+    VENUE_DONE=true; thankYou(); renderDetail(id);
+  };
+
   // 固定坑位（含概览大图）
   app.querySelectorAll(".slot[data-pid], .docslot[data-pid]").forEach(el=>{
     const get=()=>(photos||[]).find(x=>x.id===el.dataset.pid);
@@ -281,7 +333,7 @@ async function renderDetail(id){
   if(intEdit) intEdit.onclick=()=>openTextEditor("内部提示（仅编辑可见）", v.internal_note||"", async(val)=>{
     const {error}=await sb.from("venues").update({internal_note:val||null}).eq("id",id);
     if(error){ toast("保存失败"); return; }
-    await logAct(id,"编辑内部提示",null); toast("已保存"); renderDetail(id);
+    await logAct(id,"编辑内部提示",null); toast("已保存"); maybeThank(); renderDetail(id);
   });
   // 酒店编辑（仅编辑）
   app.querySelectorAll(".hedit").forEach(btn=>{
@@ -305,7 +357,7 @@ async function renderDetail(id){
     const {error}=await sb.from("survey_logs").insert({venue_id:id,author,content:txt});
     if(error){ toast("保存失败"); return; }
     await logAct(id, "写了踏勘说明", null);
-    toast("已添加"); renderDetail(id);
+    toast("已添加"); maybeThank(); renderDetail(id);
   };
 }
 
@@ -394,7 +446,7 @@ function pickAndUpload(p, el){
       if(dbErr) throw dbErr;
       await logAct(p.venue_id, wasReplace?"替换照片":"上传照片", p.slot_label);
       toast(wasReplace?"已替换 ✓":"上传成功 ✓");
-      const id=p.venue_id; renderDetail(id);
+      maybeThank(); const id=p.venue_id; renderDetail(id);
     }catch(e){ console.error(e); toast("上传失败："+(e.message||e)); el.classList.remove("uploading"); }
   };
   input.click();
@@ -416,7 +468,7 @@ function addExtraPhoto(venueId, el){
       const {error:dbErr}=await sb.from("extra_photos").insert({venue_id:venueId,storage_path:key,note:note||null,uploaded_by:whoami()});
       if(dbErr) throw dbErr;
       await logAct(venueId, "添加补充照片", note||"补充照片");
-      toast("已添加 ✓"); renderDetail(venueId);
+      toast("已添加 ✓"); maybeThank(); renderDetail(venueId);
     }catch(e){ console.error(e); toast("上传失败："+(e.message||e)); el.classList.remove("uploading"); }
   };
   input.click();
@@ -462,7 +514,7 @@ async function saveNote(){
   const {error}=await sb.from(table).update({note:val||null}).eq("id",noteCtx.rec.id);
   if(error){ toast("保存失败"); return; }
   await logAct(noteCtx.venueId, "编辑备注", noteCtx.kind==="slot"?noteCtx.rec.slot_label:"补充照片");
-  notem.classList.remove("on"); toast("备注已保存"); renderDetail(noteCtx.venueId);
+  notem.classList.remove("on"); toast("备注已保存"); maybeThank(); renderDetail(noteCtx.venueId);
 }
 document.getElementById("notem-save").onclick=saveNote;
 document.getElementById("notem-cancel").onclick=()=>notem.classList.remove("on");
@@ -505,7 +557,7 @@ document.getElementById("hm-save").onclick=async()=>{
   const {error}=await sb.from("venue_hotels").update(upd).eq("id",hotelEditing.id);
   if(error){ toast("保存失败"); return; }
   await logAct(hotelEditing.venueId,"编辑酒店信息", upd.name||"酒店");
-  hotelm.classList.remove("on"); toast("已保存"); renderDetail(hotelEditing.venueId);
+  hotelm.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(hotelEditing.venueId);
 };
 hotelm.addEventListener("click",e=>{ if(e.target===hotelm) hotelm.classList.remove("on"); });
 
@@ -594,7 +646,7 @@ function replaceExtra(e, venueId){
       if(upErr) throw upErr;
       await sb.from("extra_photos").update({created_at:new Date().toISOString()}).eq("id",e.id);
       await logAct(venueId, "替换补充照片", "补充照片");
-      toast("已替换 ✓"); renderDetail(venueId);
+      toast("已替换 ✓"); maybeThank(); renderDetail(venueId);
     }catch(err){ toast("替换失败"); }
   };
   input.click();
@@ -606,7 +658,7 @@ async function deleteExtra(){
   const {error}=await sb.from("extra_photos").delete().eq("id",e.id);
   if(error){ toast("删除失败"); return; }
   await logAct(lbCtx.venueId, "删除补充照片", "补充照片");
-  lb.classList.remove("on"); toast("已删除"); renderDetail(lbCtx.venueId);
+  lb.classList.remove("on"); toast("已删除"); maybeThank(); renderDetail(lbCtx.venueId);
 }
 document.getElementById("lb-close").onclick=()=>{ stopJingle(); lb.classList.remove("on"); };
 lb.addEventListener("click",e=>{ if(e.target===lb){ stopJingle(); lb.classList.remove("on"); } });

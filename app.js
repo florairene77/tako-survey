@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=13";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=14";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -299,22 +299,21 @@ async function renderDetail(id){
       ${(hotels&&hotels.length)? hotels.map(h=>hotelModuleHTML(h, photos, id)).join("") : `<div class="muted-empty">${canEdit()?"还没有酒店，点「＋添加酒店」录入":"暂无"}</div>`}
     </div>
 
-    <div class="section">
-      <h3><span class="dot"></span>补充照片 · 踏勘进度<span class="count">${filled}/${total} 坑位</span></h3>
-      ${((extras&&extras.length)||canEdit())?`
+    ${canEdit()?`<div class="section">
+      <h3><span class="dot"></span>补充照片 · 踏勘进度<span class="count">仅编辑可见 · ${filled}/${total} 坑位</span></h3>
       <div class="slotgroup-title">补充照片（随手拍 · 不限数量）</div>
       <div class="slots" id="extra-slots">
         ${(extras||[]).map(extraHTML).join("")}
-        ${canEdit()?`<div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}
-      </div>`:""}
+        <div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>
+      </div>
       <div class="progress-wrap">
         <div class="ptitle">📋 踏勘进度 · ${filled}/${total} 个坑位已填</div>
         <div class="pbar${(total&&filled>=total)?' full':''}"><i data-pct="${pct}"></i></div>
-        ${canEdit()?`<div class="done-row">${v.survey_done
+        <div class="done-row">${v.survey_done
           ? `<span class="done-badge">✓ 踏勘已完成</span>`
-          : `<button class="done-btn" id="survey-done">踏勘完成</button>`}</div>`:""}
+          : `<button class="done-btn" id="survey-done">踏勘完成</button>`}</div>
       </div>
-    </div>
+    </div>`:""}
 
     ${canEdit()?`<div class="section">
       <h3><span class="dot"></span>踏勘说明<span class="count">仅编辑可见 · ${logs?.length||0} 条</span></h3>

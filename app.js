@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=24";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=25";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -749,8 +749,8 @@ async function doExtraUpload(file, venueId, el){
       const key=`extra/${venueId}/${Date.now()}-${Math.round(performance.now())}.jpg`;
       const {error:upErr}=await sb.storage.from(BUCKET).upload(key,blob,{upsert:true,contentType:"image/jpeg"});
       if(upErr) throw upErr;
-      const note=(prompt("给这张照片加个备注（可留空，之后长按照片也能加）：")||"").trim();
-      let pub=true; if(note){ pub=confirm("这条备注要让「只读密码」的人也看到吗？\n确定=公开　取消=仅编辑可见"); }
+      const note=(prompt("给这张照片起个名字（导出图片时的文件名，可留空）：")||"").trim();
+      let pub=true; if(note){ pub=confirm("这个名字/备注要让「只读密码」的人也看到吗？\n确定=公开　取消=仅编辑可见"); }
       const {error:dbErr}=await sb.from("extra_photos").insert({venue_id:venueId,storage_path:key,note:note||null,note_public:pub,uploaded_by:whoami()});
       if(dbErr) throw dbErr;
       await logAct(venueId, "添加补充照片", note||"补充照片");
@@ -1207,8 +1207,10 @@ function replaceExtra(e, venueId){
       const blob=await compress(file);
       const {error:upErr}=await sb.storage.from(BUCKET).upload(e.storage_path,blob,{upsert:true,contentType:"image/jpeg"});
       if(upErr) throw upErr;
-      await sb.from("extra_photos").update({created_at:new Date().toISOString()}).eq("id",e.id);
-      await logAct(venueId, "替换补充照片", "补充照片");
+      const nm=(prompt("给这张照片起个名字（导出图片时的文件名，可留空保留原名）：", (e.note||"").trim())||"").trim();
+      const upd={created_at:new Date().toISOString()}; if(nm) upd.note=nm;
+      await sb.from("extra_photos").update(upd).eq("id",e.id);
+      await logAct(venueId, "替换补充照片", nm||"补充照片");
       toast("已替换 ✓"); maybeThank(); renderDetail(venueId);
     }catch(err){ toast("替换失败"); }
   };

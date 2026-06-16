@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=22";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=24";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -95,6 +95,7 @@ function route(){
   if(!unlocked()){ gate.style.display="flex"; return; }
   const m = location.hash.match(/#\/venue\/([\w-]+)/);
   if(m){ backbtn.style.display="block"; renderDetail(m[1]); }
+  else if(location.hash.startsWith("#/transport")){ backbtn.style.display="block"; renderTransport(); }
   else { backbtn.style.display="none"; renderHome(); }
   window.scrollTo(0,0);
 }
@@ -136,6 +137,7 @@ async function renderHome(){
           <div class="stat"><b>${cats.length-1}</b><span>比赛项目</span></div>
         </div>
       </div>
+      <button class="navbtn" id="nav-transport"><span class="ni">🚗</span><span class="nt"><b>交通 · 司机调配</b><span>${canEdit()?"司机信息库 · 按公司/名字查找":"司机交通调配（同步中）"}</span></span><span class="na">›</span></button>
       <div id="map"></div>
       <div class="maplegend">
         <span><i style="background:#7bab95"></i>LIVE</span>
@@ -148,6 +150,7 @@ async function renderHome(){
     app.querySelectorAll(".chip").forEach(ch=>ch.onclick=()=>{ active=ch.dataset.c; draw(); });
     app.querySelectorAll(".vcard:not(.addcard)").forEach(el=>el.onclick=()=>location.hash="#/venue/"+el.dataset.id);
     const addc=app.querySelector("#add-venue-card"); if(addc) addc.onclick=openAddVenue;
+    const navt=app.querySelector("#nav-transport"); if(navt) navt.onclick=()=>location.hash="#/transport";
     drawMap(list);
   }
   function cardHTML(v){
@@ -188,6 +191,80 @@ async function renderHome(){
     },60);
   }
   draw();
+}
+
+/* ---------------- 交通 · 司机信息库 ---------------- */
+let DRIVERS=[];
+async function renderTransport(){
+  if(!canEdit()){
+    app.innerHTML=`<div class="detail-hero"><span class="code">交通</span><h2>司机交通调配</h2><div class="jp">同步中…</div></div>
+      <div class="section"><div class="loading">🚗 司机交通调配正在同步中<br><br><span style="font-size:13px">稍后开放查看</span></div></div>`;
+    return;
+  }
+  app.innerHTML=`<div class="loading">加载司机库…</div>`;
+  const {data}=await sb.from("drivers").select("*").order("sort_order");
+  DRIVERS=data||[];
+  const companies=[...new Set(DRIVERS.map(d=>d.company||"未分组"))];
+  app.innerHTML=`
+    <div class="detail-hero"><span class="code">交通</span><h2>司机信息库</h2>
+      <div class="jp">${DRIVERS.length} 名司机 · ${companies.length} 家公司 · 滚动按公司浏览 / 上方搜名字</div></div>
+    <div class="section">
+      <input id="drv-search" class="drv-search" type="search" placeholder="🔍 输入名字搜（中文/日文/拼音都行）">
+      <div id="drv-list"></div>
+    </div>
+    <div class="foot">交通模块 · 司机调配（持续完善）</div>`;
+  const listEl=app.querySelector("#drv-list");
+  const draw=(kw)=>{
+    kw=(kw||"").trim().toLowerCase();
+    const match=d=>!kw||[d.family_name,d.given_name,d.jp_name,d.phone,d.team,d.plate].some(x=>(x||"").toLowerCase().includes(kw));
+    listEl.innerHTML=companies.map(co=>{
+      const ds=DRIVERS.filter(d=>(d.company||"未分组")===co && match(d));
+      if(!ds.length) return "";
+      return `<div class="drv-co">🏢 ${esc(co)}<span class="count">${ds.length} 人</span></div>
+        <div class="drv-grid">${ds.map(driverCardHTML).join("")}</div>`;
+    }).join("")||`<div class="muted-empty">没找到「${esc(kw)}」</div>`;
+    listEl.querySelectorAll(".drv-card").forEach(el=>el.onclick=()=>openDriver(el.dataset.id));
+  };
+  draw("");
+  app.querySelector("#drv-search").addEventListener("input",e=>draw(e.target.value));
+}
+function driverCardHTML(d){
+  const nm=esc((d.jp_name||"")||((d.family_name||"")+" "+(d.given_name||"")));
+  const roma=esc(((d.family_name||"")+" "+(d.given_name||"")).trim());
+  const img=d.photo_path?pubUrl(d.photo_path):null;
+  return `<div class="drv-card" data-id="${d.id}">
+    <div class="drv-photo">${img?`<img loading="lazy" src="${img}" alt="">`:`<span class="drv-noimg">无照片</span>`}</div>
+    <div class="drv-info"><div class="drv-name">${nm}</div>
+      <div class="drv-sub">${roma}</div>
+      ${d.phone?`<div class="drv-tel">📞 ${esc(d.phone)}</div>`:""}
+      ${d.plate?`<div class="drv-sub">🚗 ${esc(d.plate)}</div>`:""}${d.team?`<div class="drv-sub">👥 ${esc(d.team)}</div>`:""}
+    </div></div>`;
+}
+function openDriver(id){
+  const d=DRIVERS.find(x=>x.id===id); if(!d) return;
+  const img=d.photo_path?pubUrl(d.photo_path):null;
+  const row=(k,v)=>v?`<div class="hmeta"><span class="lab">${k}</span><span>${esc(v)}</span></div>`:"";
+  const ov=document.createElement("div"); ov.className="drvmodal";
+  ov.innerHTML=`<div class="nbox">
+    <div class="ntitle">${esc((d.jp_name||"")+"  "+((d.family_name||"")+" "+(d.given_name||"")))}</div>
+    ${img?`<img src="${img}" alt="" style="width:120px;height:150px;object-fit:cover;border-radius:12px;margin:0 auto 12px;display:block;border:1px solid var(--line)">`:""}
+    ${row("公司",d.company)}${row("电话",d.phone)}${row("邮箱",d.email)}${row("出生日期",d.dob)}${row("性别",d.gender)}${row("国籍",d.nationality)}
+    ${row("证件类型",d.id_type)}${row("证件号",d.id_number)}${row("护照到期",d.passport_expiry)}
+    ${row("所属团队",d.team)}${row("负责任务",d.task)}${row("车牌号",d.plate)}
+    <div class="nacts"><button class="btn ghost" id="drv-close">关闭</button><button class="btn" id="drv-edit">编辑运营信息</button></div>
+  </div>`;
+  document.body.appendChild(ov); ov.classList.add("on");
+  const close=()=>ov.remove();
+  ov.addEventListener("click",e=>{ if(e.target===ov) close(); });
+  ov.querySelector("#drv-close").onclick=close;
+  ov.querySelector("#drv-edit").onclick=()=>{ close(); openDriverEdit(d); };
+}
+function openDriverEdit(d){
+  const team=prompt("所属团队（如 C23 排球A）：", d.team||""); if(team===null) return;
+  const task=prompt("负责任务（如 接送运动员/物资）：", d.task||""); if(task===null) return;
+  const plate=prompt("车牌号：", d.plate||""); if(plate===null) return;
+  sb.from("drivers").update({team:team.trim()||null,task:task.trim()||null,plate:plate.trim()||null}).eq("id",d.id)
+    .then(({error})=>{ if(error){toast("保存失败");return;} toast("已保存 ✓"); renderTransport(); });
 }
 
 /* ---------------- 详情页 ---------------- */

@@ -328,3 +328,27 @@ a{color:inherit}
 .modeswitch .ms.on{background:var(--sage);border-color:var(--sage);color:#fff}
 /* 拖拽上传高亮 */
 .slot.dragover,.docslot.dragover{outline:2.5px dashed var(--sage);outline-offset:-3px;background:var(--sage-soft)}
+/* 交通入口 */
+.navbtn{width:100%;display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px;text-align:left}
+.navbtn .ni{font-size:24px;flex:0 0 auto}
+.navbtn .nt{flex:1;display:flex;flex-direction:column}
+.navbtn .nt b{font-size:15px;color:var(--ink)}
+.navbtn .nt span{font-size:12px;color:var(--muted);margin-top:2px}
+.navbtn .na{color:var(--sage);font-size:20px}
+/* 司机库 */
+.drv-search{width:100%;padding:11px 14px;border:1.5px solid var(--line);border-radius:12px;font-size:15px;outline:none;background:#fbfdfc;margin-bottom:12px}
+.drv-search:focus{border-color:var(--sage)}
+.drv-co{font-size:13px;font-weight:700;color:var(--sage-d);margin:16px 0 9px;display:flex;align-items:center;gap:7px}
+.drv-co .count{font-size:11px;color:var(--muted);font-weight:500;margin-left:auto}
+.drv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.drv-card{display:flex;gap:10px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:9px;cursor:pointer;align-items:center}
+.drv-photo{width:52px;height:64px;flex:0 0 auto;border-radius:9px;overflow:hidden;background:var(--sage-soft);display:flex;align-items:center;justify-content:center}
+.drv-photo img{width:100%;height:100%;object-fit:cover}
+.drv-noimg{font-size:10px;color:var(--muted)}
+.drv-info{min-width:0;flex:1}
+.drv-name{font-size:14px;font-weight:700;color:var(--ink);line-height:1.2}
+.drv-sub{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drv-tel{font-size:12px;color:var(--sage-d);margin-top:3px}
+.drvmodal{position:fixed;inset:0;background:rgba(40,54,49,.55);z-index:560;display:none;align-items:center;justify-content:center;padding:22px}
+.drvmodal.on{display:flex}
+.drvmodal .nbox{background:#fff;border-radius:18px;padding:18px;width:100%;max-width:360px;box-shadow:0 20px 50px rgba(40,54,49,.3);max-height:90vh;overflow:auto}

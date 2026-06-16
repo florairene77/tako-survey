@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=7";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=8";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -305,21 +305,21 @@ async function renderDetail(id){
       </div>`).join("") : `<div class="muted-empty">暂无</div>`}
     </div>
 
-    <div class="section">
-      <h3><span class="dot"></span>踏勘说明<span class="count">${logs?.length||0} 条</span></h3>
-      <div id="logs">${(logs&&logs.length)? logs.map(logHTML).join("") : `<div class="muted-empty">${canEdit()?"还没有记录，第一条由你来写 👇":"还没有记录"}</div>`}</div>
-      ${canEdit()?`<div class="logform">
+    ${canEdit()?`<div class="section">
+      <h3><span class="dot"></span>踏勘说明<span class="count">仅编辑可见 · ${logs?.length||0} 条</span></h3>
+      <div id="logs">${(logs&&logs.length)? logs.map(logHTML).join("") : `<div class="muted-empty">还没有记录，第一条由你来写 👇</div>`}</div>
+      <div class="logform">
         <textarea id="log-txt" placeholder="补充这个场馆的踏勘情况，比如停车、动线、注意事项…"></textarea>
         <button class="btn" id="log-add">＋ 添加记录</button>
-      </div>`:""}
-    </div>
+      </div>
+    </div>`:""}
 
-    <details class="section actlog">
-      <summary><span class="dot"></span>编辑记录<span class="count">${acts?.length||0} 条 · 点击展开</span></summary>
+    ${canEdit()?`<details class="section actlog">
+      <summary><span class="dot"></span>编辑记录<span class="count">仅编辑可见 · ${acts?.length||0} 条 · 点击展开</span></summary>
       <div class="actlist">
         ${(acts&&acts.length)? acts.map(actHTML).join("") : `<div class="muted-empty">还没有编辑记录</div>`}
       </div>
-    </details>
+    </details>`:""}
     <div class="foot">${esc(v.c_code)} · 资料随踏勘持续更新</div>`;
 
   // 地图

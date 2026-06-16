@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=12";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=13";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -252,6 +252,19 @@ async function renderDetail(id){
       </div>
     </div>
 
+    <div class="section idcard">
+      <h3><span class="dot"></span>识别信息 · 比赛项目<span class="count">${esc(v.c_code||"")} · ${ttLabel(v.team_type)}</span></h3>
+      ${(events&&events.length)? events.map(e=>`<div class="evrow">
+        <span class="en">${esc(v.c_code||"")} · ${esc(e.name||"")}${e.name_en?` / ${esc(e.name_en)}`:""}${e.note?` / ${esc(e.note)}`:""}</span>
+        <span class="es">${esc(e.schedule||"")}</span>
+      </div>`).join("") : `<div class="muted-empty">暂无比赛项目</div>`}
+      <div class="idtags">
+        <span class="idlab">识别标注</span>
+        <span class="idval">${v.labels?esc(v.labels):`<span class="muted">${canEdit()?"（可填三字母缩写码等任意标注）":"—"}</span>`}</span>
+        ${canEdit()?`<button class="sec-edit2" id="labels-edit">编辑</button>`:""}
+      </div>
+    </div>
+
     <div class="section">
       <h3><span class="dot"></span>基本信息${canEdit()?`<button class="sec-edit" id="venue-edit">编辑</button>`:""}</h3>
       <div class="hotel" style="margin-top:0">
@@ -301,14 +314,6 @@ async function renderDetail(id){
           ? `<span class="done-badge">✓ 踏勘已完成</span>`
           : `<button class="done-btn" id="survey-done">踏勘完成</button>`}</div>`:""}
       </div>
-    </div>
-
-    <div class="section">
-      <h3><span class="dot"></span>对应比赛项目<span class="count">${events?.length||0}</span></h3>
-      ${(events&&events.length)? events.map(e=>`<div class="evrow">
-        <span class="en">${esc(v.c_code||"")} · ${esc(e.name||"")}${e.name_en?` / ${esc(e.name_en)}`:""}${e.note?` / ${esc(e.note)}`:""}</span>
-        <span class="es">${esc(e.schedule||"")}</span>
-      </div>`).join("") : `<div class="muted-empty">暂无</div>`}
     </div>
 
     ${canEdit()?`<div class="section">
@@ -368,6 +373,13 @@ async function renderDetail(id){
   // 基本信息编辑（白色区，仅编辑）
   const vEdit=app.querySelector("#venue-edit");
   if(vEdit) vEdit.onclick=()=>openVenueEditor(v);
+  // 识别标注编辑（仅编辑）
+  const lEdit=app.querySelector("#labels-edit");
+  if(lEdit) lEdit.onclick=()=>openTextEditor("识别标注（如三字母缩写码、任意标记）", v.labels||"", async(val)=>{
+    const {error}=await sb.from("venues").update({labels:val||null}).eq("id",id);
+    if(error){ toast("保存失败"); return; }
+    await logAct(id,"编辑识别标注",val||null); toast("已保存"); maybeThank(); renderDetail(id);
+  });
   // 场馆 内部提示 / 公开TIPs
   const intV=app.querySelector("#int-venue");
   if(intV) intV.onclick=()=>openTextEditor("场馆内部提示（仅编辑可见）", v.internal_note||"", async(val)=>{
@@ -414,10 +426,10 @@ async function renderDetail(id){
   app.querySelectorAll(".addslot").forEach(el=>{
     el.onclick=async()=>{
       const scope=el.dataset.scope, hid=el.dataset.hid||null;
-      const def = scope==='overview'?"概览大表（路线/住宿表/餐饮表）": scope==='route'?"路线":scope==='dining'?"餐饮":"住宿";
-      const name=(prompt(`给这套「${def}」起个名字（如"知立酒店路线"）：`, "")||"").trim();
+      const def = scope==='overview'?"概览大表（路线/住宿表/餐饮表）": scope==='more'?"补充资料（路线/餐饮/住宿等）":"资料";
+      const name=(prompt(`给这份「${def}」起个名字（如"知立酒店路线"）：`, "")||"").trim();
       if(!name) return;
-      const key=`${scope==='overview'?'ov':scope}_${Math.random().toString(36).slice(2,8)}`;
+      const key=`${scope==='overview'?'ov':'more'}_${Math.random().toString(36).slice(2,8)}`;
       const grp = scope==='overview'?'概览':'酒店';
       const {error}=await sb.from("venue_photos").insert({venue_id:id,hotel_id:hid,slot_key:key,slot_group:grp,slot_label:name,slot_type:"paste",storage_path:null,sort_order:50});
       if(error){ toast("添加失败"); return; }
@@ -534,8 +546,8 @@ function myNoteHTML(key, hid){
     <div class="mynote-row"><span class="mynote-meta">${meta}</span><button class="btn-sm mynote-save" data-key="${key}" data-hid="${hid||""}">保存笔记</button></div>
   </details>`;
 }
-function addSlotBtnHTML(vid, hid, scope){
-  return `<div class="docslot empty addslot" data-scope="${scope}" data-hid="${hid||""}"><div class="ico">＋</div><div class="lab">添加一套</div></div>`;
+function addSlotBtnHTML(vid, hid, scope, label){
+  return `<div class="docslot empty addslot" data-scope="${scope}" data-hid="${hid||""}"><div class="ico">＋</div><div class="lab">${label||"添加一套"}</div></div>`;
 }
 function hotelModuleHTML(h, photos, vid){
   const hp=(photos||[]).filter(p=>p.hotel_id===h.id);
@@ -550,9 +562,9 @@ function hotelModuleHTML(h, photos, vid){
     <div class="hmeta"><span class="lab">最近交通</span><span>${esc(h.nearest_transit||"—")}</span></div>
     ${h.url?`<div class="hmeta"><span class="lab">官网</span><a href="${esc(h.url)}" target="_blank" rel="noopener" style="color:var(--accent)">打开官网 ↗</a></div>`:""}
     ${main.length?`<div class="slots" style="margin-top:10px">${main.map(slotHTML).join("")}</div>`:""}
-    ${SUBCATS.map(([cat,lab])=>{ const items=hp.filter(p=>p.slot_key.startsWith(cat+"_")&&!HMAIN.includes(p.slot_key));
-      return (items.length||canEdit())?`<div class="subcat"><div class="subcat-t">${lab}</div>
-        <div class="slots docs">${items.map(docSlotHTML).join("")}${canEdit()?addSlotBtnHTML(vid,h.id,cat):""}</div></div>`:""; }).join("")}
+    ${(()=>{ const ex=hp.filter(p=>!HMAIN.includes(p.slot_key));
+      return (ex.length||canEdit())?`<div class="subcat"><div class="subcat-t">📎 补充资料（路线/餐饮/住宿等 · 照片+备注）</div>
+        <div class="slots docs">${ex.map(docSlotHTML).join("")}${canEdit()?addSlotBtnHTML(vid,h.id,'more','＋添加'):""}</div></div>`:""; })()}
     ${h.hotel_intro?`<div class="intro">${esc(fmtIntro(h.hotel_intro))}</div>`:""}
     ${tipsCardHTML(h.public_tips, `tips-h-${h.id}`)}
     ${canEdit()?internalCardHTML(h.internal_note, `int-h-${h.id}`):""}

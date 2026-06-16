@@ -272,3 +272,36 @@ a{color:inherit}
 .vcard.addcard .lab{font-size:13px;font-weight:700;margin-top:6px}
 .vcard.addcard .sub{font-size:10.5px;color:var(--muted);margin-top:3px}
 .vcard .pending{position:absolute;left:8px;bottom:8px;background:rgba(216,177,94,.96);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px}
+
+/* ===== v2 模块化：场馆一坨 / 酒店一坨 ===== */
+.section > h3 .dot.venue{background:var(--sage)}
+.section > h3 .dot.hotel{background:var(--sky)}
+.module{border-radius:15px;padding:14px 15px;margin-top:12px;border:1px solid var(--line);background:var(--card)}
+.module-venue{border-left:4px solid var(--sage);background:linear-gradient(180deg,var(--sage-soft) 0%,#fff 70px)}
+.module-hotel{border-left:4px solid var(--sky);background:linear-gradient(180deg,var(--sky-soft) 0%,#fff 70px);margin-bottom:14px}
+.modules-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.modules-head .sec-edit{position:static}
+.mh-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.mh-head .hn{font-size:15px;font-weight:700;color:var(--ink)}
+.module .hacts{display:flex;gap:6px}
+.module .hacts button{font-size:11px;padding:3px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--sage-d)}
+.module .hacts .del{color:#c2604e;border-color:#f0cfc7}
+.subcat{margin-top:12px}
+.subcat-t{font-size:12px;font-weight:700;color:var(--sky);margin:0 0 7px}
+/* 公开 TIPs 卡片（金色，场馆经理可见） */
+.tips-card{background:#fffbe9;border:1px solid #f2e3a8;border-radius:13px;padding:12px 14px;margin-top:12px}
+.tips-hd{font-size:13px;font-weight:700;color:#b8860b;display:flex;align-items:center;gap:6px;margin-bottom:7px}
+.tips-hd .iedit{margin-left:auto;font-size:11px;color:var(--sage-d);background:#fff;border:1px solid #ecd9a3;padding:3px 11px;border-radius:8px}
+.tips-body{font-size:14px;line-height:1.7;color:var(--ink);white-space:pre-wrap}
+/* 我的笔记（编辑专属，折叠） */
+.mynote{margin-top:12px;border:1px dashed var(--sky);border-radius:12px;background:var(--sky-soft);padding:0 12px}
+.mynote summary{font-size:12px;font-weight:700;color:#5a8a93;padding:10px 0;cursor:pointer;list-style:none}
+.mynote summary::-webkit-details-marker{display:none}
+.mynote summary::before{content:"▸ ";}
+.mynote[open] summary::before{content:"▾ ";}
+.mynote-ta{width:100%;min-height:64px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px;line-height:1.6;resize:vertical;font-family:inherit;box-sizing:border-box}
+.mynote-ta:focus{border-color:var(--sky);outline:none}
+.mynote-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0 12px}
+.mynote-meta{font-size:11px;color:var(--muted)}
+.btn-sm{font-size:12px;padding:5px 14px;border-radius:9px;border:none;background:var(--sage);color:#fff;font-weight:600}
+.docslot.addslot{display:flex;flex-direction:column;align-items:center;justify-content:center;border:1.5px dashed var(--sky);background:var(--sky-soft);color:#5a8a93;cursor:pointer;min-height:90px}

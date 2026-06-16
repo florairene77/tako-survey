@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=6";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=7";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -14,6 +14,7 @@ if(window.L){
 }
 const app = document.getElementById("app");
 const backbtn = document.getElementById("backbtn");
+let SNOTES=[], CURV=null;   // 我的笔记缓存 / 当前场馆
 
 /* ---------------- 登录 ---------------- */
 const gate = document.getElementById("gate");
@@ -214,6 +215,10 @@ async function renderDetail(id){
     sb.from("activity_log").select("*").eq("venue_id",id).order("created_at",{ascending:false}).limit(40),
   ]);
   if(!v){ app.innerHTML=`<div class="loading">场馆不存在</div>`; return; }
+  // 我的笔记（编辑专属：只读不拉取、不渲染）
+  let snotes=[];
+  if(canEdit()){ const {data:sn}=await sb.from("section_notes").select("*").eq("venue_id",id); snotes=sn||[]; }
+  SNOTES=snotes; CURV=v;
 
   const groups={};
   (photos||[]).forEach(p=>{ (groups[p.slot_group]=groups[p.slot_group]||[]).push(p); });
@@ -252,30 +257,37 @@ async function renderDetail(id){
       ${v.venue_intro?`<div class="intro-box" style="margin-top:10px">${esc(v.venue_intro)}</div>`:""}
     </div>
 
-    ${canEdit()?`<div class="section">
-      <h3><span class="dot"></span>内部提示<span class="count">仅编辑可见 🔒</span></h3>
-      <div class="intnote">
-        <div class="ihd">🔒 画面外信息 · 只读密码看不到<button class="iedit" id="int-edit">编辑</button></div>
-        ${v.internal_note?`<div class="ibody">${esc(v.internal_note)}</div>`:`<div class="iempty">还没有内部提示，点「编辑」添加（订餐电话、提前预约天数、店长联系方式等）</div>`}
-      </div>
-    </div>`:""}
+    ${(()=>{ const ov=(photos||[]).filter(p=>p.slot_group==='概览'&&!p.hotel_id);
+      return (ov.length||canEdit())?`<div class="section">
+      <h3><span class="dot"></span>概览<span class="count">全队总览 · 点开放大</span></h3>
+      <div class="hint-line">谷歌总路线图 / 住宿信息表 / 餐饮信息统计表（全队的大表放这里）</div>
+      <div class="slots docs">${ov.map(docSlotHTML).join("")}
+        ${canEdit()?addSlotBtnHTML(id,null,'overview'):""}</div>
+      ${myNoteHTML('overview',null)}
+    </div>`:""; })()}
+
+    <div class="section module module-venue">
+      <h3><span class="dot venue"></span>🏟 场馆<span class="count">${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id&&p.storage_path).length}/${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id).length} 已填</span></h3>
+      <div class="slots">${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id).map(slotHTML).join("")}</div>
+      ${tipsCardHTML(v.public_tips, `tips-venue`)}
+      ${canEdit()?internalCardHTML(v.internal_note, `int-venue`):""}
+      ${myNoteHTML('venue',null)}
+    </div>
 
     <div class="section">
-      <h3><span class="dot"></span>照片资料<span class="count">${filled}/${photos?.length||0} 已填</span></h3>
-      <div class="hint-line">${canEdit()?"点空坑位即可拍照/选图上传 · 长按照片加备注、点开可替换":"点照片看大图与备注 · 长按也能看备注"}</div>
-      ${GROUP_ORDER.filter(g=>groups[g]).map(g=>`
-        <div class="slotgroup-title">${g}${g==="概览"?"（重要 · 点开放大）":""}</div>
-        ${g==="概览"
-          ? `<div class="slots docs">${groups[g].map(docSlotHTML).join("")}</div>`
-          : `<div class="slots">${groups[g].map(slotHTML).join("")}</div>`}
-      `).join("")}
+      <div class="modules-head"><h3 style="margin:0"><span class="dot hotel"></span>酒店<span class="count">${hotels?.length||0} 家</span></h3>
+      ${canEdit()?`<button class="sec-edit" id="add-hotel">＋添加酒店</button>`:""}</div>
+      ${(hotels&&hotels.length)? hotels.map(h=>hotelModuleHTML(h, photos, id)).join("") : `<div class="muted-empty">${canEdit()?"还没有酒店，点「＋添加酒店」录入":"暂无"}</div>`}
+    </div>
+
+    <div class="section">
+      <h3><span class="dot"></span>补充照片 · 踏勘进度<span class="count">${filled}/${total} 坑位</span></h3>
       ${((extras&&extras.length)||canEdit())?`
       <div class="slotgroup-title">补充照片（随手拍 · 不限数量）</div>
       <div class="slots" id="extra-slots">
         ${(extras||[]).map(extraHTML).join("")}
         ${canEdit()?`<div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}
       </div>`:""}
-
       <div class="progress-wrap">
         <div class="ptitle">📋 踏勘进度 · ${filled}/${total} 个坑位已填</div>
         <div class="pbar${(total&&filled>=total)?' full':''}"><i data-pct="${pct}"></i></div>
@@ -291,11 +303,6 @@ async function renderDetail(id){
         <span class="en">${esc(v.c_code||"")} · ${esc(e.name||"")}${e.name_en?` / ${esc(e.name_en)}`:""}${e.note?` / ${esc(e.note)}`:""}</span>
         <span class="es">${esc(e.schedule||"")}</span>
       </div>`).join("") : `<div class="muted-empty">暂无</div>`}
-    </div>
-
-    <div class="section">
-      <h3><span class="dot"></span>配套酒店${canEdit()?`<button class="sec-edit" id="add-hotel" style="margin-left:10px">＋添加</button>`:""}<span class="count">${hotels?.length||0}</span></h3>
-      ${(hotels&&hotels.length)? hotels.map(hotelHTML).join("") : `<div class="muted-empty">${canEdit()?"还没有酒店，点上面「＋添加」录入":"暂无"}</div>`}
     </div>
 
     <div class="section">
@@ -355,12 +362,61 @@ async function renderDetail(id){
   // 基本信息编辑（白色区，仅编辑）
   const vEdit=app.querySelector("#venue-edit");
   if(vEdit) vEdit.onclick=()=>openVenueEditor(v);
-  // 内部提示编辑（仅编辑）
-  const intEdit=app.querySelector("#int-edit");
-  if(intEdit) intEdit.onclick=()=>openTextEditor("内部提示（仅编辑可见）", v.internal_note||"", async(val)=>{
+  // 场馆 内部提示 / 公开TIPs
+  const intV=app.querySelector("#int-venue");
+  if(intV) intV.onclick=()=>openTextEditor("场馆内部提示（仅编辑可见）", v.internal_note||"", async(val)=>{
     const {error}=await sb.from("venues").update({internal_note:val||null}).eq("id",id);
     if(error){ toast("保存失败"); return; }
-    await logAct(id,"编辑内部提示",null); toast("已保存"); maybeThank(); renderDetail(id);
+    await logAct(id,"编辑场馆内部提示",null); toast("已保存"); maybeThank(); renderDetail(id);
+  });
+  const tipV=app.querySelector("#tips-venue");
+  if(tipV) tipV.onclick=()=>openTextEditor("场馆重要提示（场馆经理可见）", v.public_tips||"", async(val)=>{
+    const {error}=await sb.from("venues").update({public_tips:val||null}).eq("id",id);
+    if(error){ toast("保存失败"); return; }
+    await logAct(id,"编辑场馆重要提示",null); toast("已保存"); maybeThank(); renderDetail(id);
+  });
+  // 各酒店 内部提示 / 公开TIPs
+  (hotels||[]).forEach(h=>{
+    const bi=app.querySelector(`#int-h-${CSS.escape(h.id)}`);
+    if(bi) bi.onclick=()=>openTextEditor(`内部提示 · ${h.name||""}`, h.internal_note||"", async(val)=>{
+      const {error}=await sb.from("venue_hotels").update({internal_note:val||null}).eq("id",h.id);
+      if(error){ toast("保存失败"); return; }
+      await logAct(id,"编辑酒店内部提示",h.name); toast("已保存"); maybeThank(); renderDetail(id);
+    });
+    const bt=app.querySelector(`#tips-h-${CSS.escape(h.id)}`);
+    if(bt) bt.onclick=()=>openTextEditor(`重要提示 · ${h.name||""}`, h.public_tips||"", async(val)=>{
+      const {error}=await sb.from("venue_hotels").update({public_tips:val||null}).eq("id",h.id);
+      if(error){ toast("保存失败"); return; }
+      await logAct(id,"编辑酒店重要提示",h.name); toast("已保存"); maybeThank(); renderDetail(id);
+    });
+  });
+  // 我的笔记 保存（编辑专属）
+  app.querySelectorAll(".mynote-save").forEach(btn=>{
+    btn.onclick=async()=>{
+      const key=btn.dataset.key, hid=btn.dataset.hid||null;
+      const ta=btn.closest(".mynote").querySelector(".mynote-ta");
+      const val=ta.value.trim();
+      const existing=SNOTES.find(n=>n.section_key===key && (n.hotel_id||null)===hid);
+      let error;
+      if(existing){ ({error}=await sb.from("section_notes").update({note:val||null,updated_by:whoami(),updated_at:new Date().toISOString()}).eq("id",existing.id)); }
+      else { ({error}=await sb.from("section_notes").insert({venue_id:id,hotel_id:hid,section_key:key,note:val||null,updated_by:whoami()})); }
+      if(error){ toast("保存失败"); return; }
+      toast("笔记已保存 ✓"); renderDetail(id);
+    };
+  });
+  // 添加 路线/餐饮/住宿/概览 坑位
+  app.querySelectorAll(".addslot").forEach(el=>{
+    el.onclick=async()=>{
+      const scope=el.dataset.scope, hid=el.dataset.hid||null;
+      const def = scope==='overview'?"概览大表（路线/住宿表/餐饮表）": scope==='route'?"路线":scope==='dining'?"餐饮":"住宿";
+      const name=(prompt(`给这套「${def}」起个名字（如"知立酒店路线"）：`, "")||"").trim();
+      if(!name) return;
+      const key=`${scope==='overview'?'ov':scope}_${Math.random().toString(36).slice(2,8)}`;
+      const grp = scope==='overview'?'概览':'酒店';
+      const {error}=await sb.from("venue_photos").insert({venue_id:id,hotel_id:hid,slot_key:key,slot_group:grp,slot_label:name,slot_type:"paste",storage_path:null,sort_order:50});
+      if(error){ toast("添加失败"); return; }
+      await logAct(id,"添加坑位",name); toast("已添加，点它上传图"); renderDetail(id);
+    };
   });
   // 酒店编辑（仅编辑）
   app.querySelectorAll(".hedit").forEach(btn=>{
@@ -446,15 +502,55 @@ function docSlotHTML(p){
   if(!canEdit()) return `<div class="docslot empty"><div class="ico">🖼️</div><div class="lab">${esc(p.slot_label)} · 暂无</div></div>`;
   return `<div class="docslot empty" data-pid="${p.id}"><div class="ico">${p.slot_type==="paste"?"🖼️":"📷"}</div><div class="lab">${esc(p.slot_label)} · 点击上传</div></div>`;
 }
-function hotelHTML(h){
-  return `<div class="hotel">
-    ${canEdit()?`<span class="hacts"><button class="hedit" data-hid="${h.id}">改</button><button class="hmig" data-hid="${h.id}">迁</button><button class="hdel del" data-hid="${h.id}">删</button></span>`:""}
-    <div class="hn">🏨 ${esc(h.name||"")}</div>
+const HMAIN=["hotel_exterior","hotel_map","hotel_lobby","hotel_surround_1","hotel_surround_2","hotel_surround_3"];
+const SUBCATS=[["route","🗺 路线"],["dining","🍱 餐饮"],["lodging","🛏 住宿"]];
+function tipsCardHTML(text, editId){
+  if(!text && !canEdit()) return "";
+  return `<div class="tips-card">
+    <div class="tips-hd"><span>⭐ 重要提示</span>${canEdit()?`<button class="iedit" id="${editId}">编辑</button>`:""}</div>
+    ${text?`<div class="tips-body">${esc(text)}</div>`:`<div class="iempty">还没有重要提示，点「编辑」添加场馆经理需要知道的运营要点</div>`}
+  </div>`;
+}
+function internalCardHTML(text, editId){
+  return `<div class="intnote">
+    <div class="ihd">🔒 内部提示 · 只读看不到<button class="iedit" id="${editId}">编辑</button></div>
+    ${text?`<div class="ibody">${esc(text)}</div>`:`<div class="iempty">还没有内部提示（订餐电话、价格、提前预约天数、店长联系方式等）</div>`}
+  </div>`;
+}
+function myNoteHTML(key, hid){
+  if(!canEdit()) return "";
+  const rec=SNOTES.find(n=>n.section_key===key && (n.hotel_id||null)===(hid||null));
+  const txt=rec?.note||"";
+  const meta=rec&&rec.updated_at?`${esc(rec.updated_by||"")} 改于 ${new Date(rec.updated_at).toLocaleDateString()}`:"";
+  return `<details class="mynote"${txt?" open":""}>
+    <summary>📝 我的笔记（仅编辑可见）${txt?" · 已记":""}</summary>
+    <textarea class="mynote-ta" placeholder="随手记，只有编辑能看到…">${esc(txt)}</textarea>
+    <div class="mynote-row"><span class="mynote-meta">${meta}</span><button class="btn-sm mynote-save" data-key="${key}" data-hid="${hid||""}">保存笔记</button></div>
+  </details>`;
+}
+function addSlotBtnHTML(vid, hid, scope){
+  return `<div class="docslot empty addslot" data-scope="${scope}" data-hid="${hid||""}"><div class="ico">＋</div><div class="lab">添加一套</div></div>`;
+}
+function hotelModuleHTML(h, photos, vid){
+  const hp=(photos||[]).filter(p=>p.hotel_id===h.id);
+  const main=HMAIN.map(k=>hp.find(p=>p.slot_key===k)).filter(Boolean);
+  return `<div class="module module-hotel">
+    <div class="mh-head">
+      <div class="hn">🏨 ${esc(h.name||"")}</div>
+      ${canEdit()?`<span class="hacts"><button class="hedit" data-hid="${h.id}">改</button><button class="hmig" data-hid="${h.id}">迁</button><button class="hdel del" data-hid="${h.id}">删</button></span>`:""}
+    </div>
     <div class="hmeta"><span class="lab">地址</span><span>${esc(h.address||"—")}</span></div>
     <div class="hmeta"><span class="lab">房型</span><span>${esc(h.room_type||"—")}</span></div>
     <div class="hmeta"><span class="lab">最近交通</span><span>${esc(h.nearest_transit||"—")}</span></div>
     ${h.url?`<div class="hmeta"><span class="lab">官网</span><a href="${esc(h.url)}" target="_blank" rel="noopener" style="color:var(--accent)">打开官网 ↗</a></div>`:""}
+    ${main.length?`<div class="slots" style="margin-top:10px">${main.map(slotHTML).join("")}</div>`:""}
+    ${SUBCATS.map(([cat,lab])=>{ const items=hp.filter(p=>p.slot_key.startsWith(cat+"_")&&!HMAIN.includes(p.slot_key));
+      return (items.length||canEdit())?`<div class="subcat"><div class="subcat-t">${lab}</div>
+        <div class="slots docs">${items.map(docSlotHTML).join("")}${canEdit()?addSlotBtnHTML(vid,h.id,cat):""}</div></div>`:""; }).join("")}
     ${h.hotel_intro?`<div class="intro">${esc(h.hotel_intro)}</div>`:""}
+    ${tipsCardHTML(h.public_tips, `tips-h-${h.id}`)}
+    ${canEdit()?internalCardHTML(h.internal_note, `int-h-${h.id}`):""}
+    ${myNoteHTML('hotel',h.id)}
   </div>`;
 }
 function actHTML(a){
@@ -756,6 +852,11 @@ document.getElementById("mig-confirm").onclick=async()=>{
   const table=migCtx.kind==="hotel"?"venue_hotels":"venue_events";
   const {error}=await sb.from(table).update({venue_id:target}).eq("id",migCtx.rec.id);
   if(error){ toast("迁移失败"); return; }
+  // 酒店整体迁移：连同它的照片 + 我的笔记一起搬到目标场馆
+  if(migCtx.kind==="hotel"){
+    await sb.from("venue_photos").update({venue_id:target}).eq("hotel_id",migCtx.rec.id);
+    await sb.from("section_notes").update({venue_id:target}).eq("hotel_id",migCtx.rec.id);
+  }
   const what=(migCtx.kind==="hotel"?"酒店":"项目")+"「"+(migCtx.rec.name||"")+"」";
   const tgtName=document.getElementById("mig-target").selectedOptions[0]?.textContent||"目标馆";
   await logAct(migCtx.fromVenueId, "迁出"+(migCtx.kind==="hotel"?"酒店":"项目"), (migCtx.rec.name||"")+" → "+tgtName);

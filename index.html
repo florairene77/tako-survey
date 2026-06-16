@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TAKO 亚运后勤资源库</title>
-<link rel="manifest" href="manifest.json?v=19">
+<link rel="manifest" href="manifest.json?v=20">
 <meta name="theme-color" content="#7bab95">
-<link rel="apple-touch-icon" href="icon-180.png?v=19">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=19">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=19">
-<link rel="shortcut icon" href="favicon-32.png?v=19">
+<link rel="apple-touch-icon" href="icon-180.png?v=20">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=20">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=20">
+<link rel="shortcut icon" href="favicon-32.png?v=20">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="TAKO">
@@ -17,14 +17,14 @@
 <script src="vendor/leaflet.js"></script>
 <script src="vendor/supabase.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=19">
+<link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
 
 <!-- 登录闸 -->
 <div id="gate">
   <div class="box">
-    <img class="gate-logo" src="logo-full.png?v=19" alt="TAKO 名古屋亚运会后勤统筹系统">
+    <img class="gate-logo" src="logo-full.png?v=20" alt="TAKO 名古屋亚运会后勤统筹系统">
     <p>HB 后勤组 · 内部共享</p>
     <div id="gate-step-pw">
       <input id="gate-pw" type="password" inputmode="text" placeholder="输入访问密码" autocomplete="off">
@@ -43,7 +43,7 @@
 <div class="topbar">
   <div class="inner">
     <button class="back" id="backbtn" style="display:none">‹</button>
-    <img class="logo-img" src="logo-mascot.png?v=19" alt="TAKO">
+    <img class="logo-img" src="logo-mascot.png?v=20" alt="TAKO">
     <div>
       <div class="title">TAKO</div>
       <div class="sub">名古屋亚运会后勤统筹系统</div>
@@ -91,6 +91,8 @@
 <div id="hotelm">
   <div class="nbox">
     <div class="ntitle">编辑酒店信息</div>
+    <div class="modeswitch" id="hm-modesw" style="display:none"><button class="ms on" data-m="new" id="hm-mnew">🆕 新建</button><button class="ms" data-m="copy" id="hm-mcopy">📋 复制现有酒店</button></div>
+    <div id="hm-copywrap" style="display:none"><label class="fl">复制哪个酒店（信息+照片一起）</label><select id="hm-copysrc"></select></div>
     <label class="fl">酒店名称</label><input id="hm-name" type="text">
     <label class="fl">地址（可能会变）</label><input id="hm-address" type="text">
     <label class="fl">房型</label><input id="hm-room" type="text">
@@ -174,6 +176,8 @@
 <div id="addm">
   <div class="nbox">
     <div class="ntitle">＋ 添加场馆</div>
+    <div class="modeswitch"><button class="ms on" data-m="new" id="am-mnew">🆕 新建</button><button class="ms" data-m="copy" id="am-mcopy">📋 复制现有场馆</button></div>
+    <div id="am-copywrap" style="display:none"><label class="fl">复制哪个场馆（信息+照片一起）</label><select id="am-copysrc"></select></div>
     <label class="fl">项目名称 *（如：足球、沙滩排球）</label><input id="am-cat" type="text">
     <label class="fl">执行团队 / 城市</label><input id="am-team" type="text">
     <label class="fl">C 码（如有，如 C12）</label><input id="am-code" type="text">
@@ -191,13 +195,13 @@
 <!-- 谢谢你小章鱼 -->
 <div id="thankyou">
   <div class="ty-card">
-    <img src="thankyou.png?v=19" alt="谢谢你">
+    <img src="thankyou.png?v=20" alt="谢谢你">
     <div class="ty-sub">踏勘成果已记录 · 辛苦啦</div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script type="module" src="app.js?v=19"></script>
+<script type="module" src="app.js?v=20"></script>
 </body>
 </html>

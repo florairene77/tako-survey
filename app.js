@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=19";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=20";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -755,16 +755,33 @@ textm.addEventListener("click",e=>{ if(e.target===textm) textm.classList.remove(
 
 /* ---------------- 酒店编辑 ---------------- */
 const hotelm=document.getElementById("hotelm");
-let hotelEditing=null;
-function openAddHotel(venueId){
+let hotelEditing=null, hmMode="new";
+function setHmMode(m){
+  hmMode=m;
+  document.getElementById("hm-mnew").classList.toggle("on",m==="new");
+  document.getElementById("hm-mcopy").classList.toggle("on",m==="copy");
+  document.getElementById("hm-copywrap").style.display = m==="copy"?"":"none";
+}
+async function openAddHotel(venueId){
   hotelEditing={id:null, venueId};
   ["hm-name","hm-address","hm-room","hm-transit","hm-travel","hm-url","hm-intro"].forEach(i=>document.getElementById(i).value="");
   document.querySelector("#hotelm .ntitle").textContent="添加酒店";
+  document.getElementById("hm-modesw").style.display="";   // 仅新增时显示模式切换
+  setHmMode("new");
+  // 填充可复制酒店下拉（跨场馆，显示 项目-酒店名）
+  const [{data:hs},{data:vs}]=await Promise.all([
+    sb.from("venue_hotels").select("id,name,venue_id").order("sort_order"),
+    sb.from("venues").select("id,category,c_code")]);
+  const vmap={}; (vs||[]).forEach(v=>vmap[v.id]=(v.c_code?v.c_code+" ":"")+(v.category||""));
+  const sel=document.getElementById("hm-copysrc");
+  sel.innerHTML=(hs||[]).map(h=>`<option value="${h.id}">${esc((vmap[h.venue_id]||"")+" · "+(h.name||"酒店"))}</option>`).join("");
   hotelm.classList.add("on");
   setTimeout(()=>document.getElementById("hm-name").focus(),50);
 }
 function openHotelEditor(h, venueId){
   hotelEditing={id:h.id, venueId};
+  document.getElementById("hm-modesw").style.display="none";   // 编辑时不显示
+  document.getElementById("hm-copywrap").style.display="none";
   document.querySelector("#hotelm .ntitle").textContent="编辑酒店信息";
   document.getElementById("hm-name").value=h.name||"";
   document.getElementById("hm-address").value=h.address||"";
@@ -776,22 +793,53 @@ function openHotelEditor(h, venueId){
   hotelm.classList.add("on");
 }
 document.getElementById("hm-cancel").onclick=()=>hotelm.classList.remove("on");
+document.getElementById("hm-mnew").onclick=()=>setHmMode("new");
+document.getElementById("hm-mcopy").onclick=async()=>{ setHmMode("copy");
+  const id=document.getElementById("hm-copysrc").value; if(id) await hmPrefill(id); };
+document.getElementById("hm-copysrc").onchange=(e)=>hmPrefill(e.target.value);
+async function hmPrefill(hid){
+  const {data:s}=await sb.from("venue_hotels").select("*").eq("id",hid).single();
+  if(!s) return;
+  const set=(i,val)=>document.getElementById(i).value=val||"";
+  set("hm-name",s.name); set("hm-address",s.address); set("hm-room",s.room_type);
+  set("hm-transit",s.nearest_transit); set("hm-travel",s.travel_time); set("hm-url",s.url); set("hm-intro",s.hotel_intro);
+}
 document.getElementById("hm-save").onclick=async()=>{
   if(!hotelEditing) return;
   const g=id=>document.getElementById(id).value.trim();
   const upd={ name:g("hm-name")||null, address:g("hm-address")||null, room_type:g("hm-room")||null,
     nearest_transit:g("hm-transit")||null, travel_time:g("hm-travel")||null, url:g("hm-url")||null, hotel_intro:g("hm-intro")||null };
-  if(hotelEditing.id){
-    const {error}=await sb.from("venue_hotels").update(upd).eq("id",hotelEditing.id);
-    if(error){ toast("保存失败"); return; }
-    await logAct(hotelEditing.venueId,"编辑酒店信息", upd.name||"酒店");
-  } else {
-    upd.venue_id=hotelEditing.venueId; upd.sort_order=99;
-    const {error}=await sb.from("venue_hotels").insert(upd);
-    if(error){ toast("添加失败"); return; }
-    await logAct(hotelEditing.venueId,"添加酒店", upd.name||"酒店");
-  }
-  hotelm.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(hotelEditing.venueId);
+  const saveBtn=document.getElementById("hm-save"); saveBtn.disabled=true;
+  try{
+    if(hotelEditing.id){
+      const {error}=await sb.from("venue_hotels").update(upd).eq("id",hotelEditing.id);
+      if(error){ toast("保存失败"); return; }
+      await logAct(hotelEditing.venueId,"编辑酒店信息", upd.name||"酒店");
+    } else if(hmMode==="copy"){
+      const srcId=document.getElementById("hm-copysrc").value;
+      if(!srcId){ toast("先选要复制的酒店"); return; }
+      saveBtn.textContent="复制中…";
+      const {data:src}=await sb.from("venue_hotels").select("*").eq("id",srcId).single();
+      const {data:srcPhotos}=await sb.from("venue_photos").select("*").eq("hotel_id",srcId);
+      const newHid=crypto.randomUUID();
+      Object.assign(upd,{ id:newHid, venue_id:hotelEditing.venueId, sort_order:99,
+        public_tips:src.public_tips, internal_note:src.internal_note, lat:src.lat, lng:src.lng });
+      const {error}=await sb.from("venue_hotels").insert(upd);
+      if(error){ toast("复制失败"); return; }
+      await copyPhotos(srcPhotos||[], hotelEditing.venueId, newHid);
+      await logAct(hotelEditing.venueId,"复制酒店(自"+(src.name||"")+")", upd.name||"酒店");
+    } else {
+      upd.venue_id=hotelEditing.venueId; upd.sort_order=99;
+      const newHid=crypto.randomUUID(); upd.id=newHid;
+      const {error}=await sb.from("venue_hotels").insert(upd);
+      if(error){ toast("添加失败"); return; }
+      // 新酒店配 6 个标准空坑位
+      const HS=[["hotel_exterior","酒店外观","photo",10],["hotel_map","酒店官网及周边地图","paste",11],["hotel_lobby","酒店大堂","photo",12],["hotel_surround_1","酒店周边①","photo",13],["hotel_surround_2","酒店周边②","photo",14],["hotel_surround_3","酒店周边③","photo",15]];
+      await sb.from("venue_photos").insert(HS.map(s=>({venue_id:hotelEditing.venueId,hotel_id:newHid,slot_key:s[0],slot_group:"酒店",slot_label:s[1],slot_type:s[2],storage_path:null,sort_order:s[3]})));
+      await logAct(hotelEditing.venueId,"添加酒店", upd.name||"酒店");
+    }
+    hotelm.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(hotelEditing.venueId);
+  } finally { saveBtn.disabled=false; saveBtn.textContent="保存"; }
 };
 hotelm.addEventListener("click",e=>{ if(e.target===hotelm) hotelm.classList.remove("on"); });
 
@@ -804,30 +852,87 @@ const ADD_SLOTS=[
  ["hotel_exterior","酒店","酒店外观","photo",10],["hotel_map","酒店","酒店官网及周边地图","paste",11],["hotel_lobby","酒店","酒店大堂","photo",12],
  ["hotel_surround_1","酒店","酒店周边①","photo",13],["hotel_surround_2","酒店","酒店周边②","photo",14],["hotel_surround_3","酒店","酒店周边③","photo",15],
 ];
-function openAddVenue(){
+let amMode="new";
+// 独立拷贝照片（下载原图→上传到新路径→插入新行，互不影响）
+async function copyPhotos(srcRows, vid, hid){
+  for(const p of srcRows){
+    let newPath=null;
+    if(p.storage_path){
+      try{
+        const blob=await fetch(pubUrl(p.storage_path)).then(r=>r.ok?r.blob():null);
+        if(blob){
+          newPath=`${vid}/${hid?(hid.slice(0,8)+"_"):""}${p.slot_key}_${Math.random().toString(36).slice(2,6)}.jpg`;
+          const {error}=await sb.storage.from(BUCKET).upload(newPath,blob,{upsert:true,contentType:"image/jpeg"});
+          if(error) newPath=null;
+        }
+      }catch(e){ newPath=null; }
+    }
+    await sb.from("venue_photos").insert({venue_id:vid, hotel_id:hid||null, slot_key:p.slot_key,
+      slot_group:p.slot_group, slot_label:p.slot_label, slot_type:p.slot_type, storage_path:newPath,
+      note:p.note, note_public:p.note_public, caption:p.caption, sort_order:p.sort_order});
+  }
+}
+function setAmMode(m){
+  amMode=m;
+  document.getElementById("am-mnew").classList.toggle("on",m==="new");
+  document.getElementById("am-mcopy").classList.toggle("on",m==="copy");
+  document.getElementById("am-copywrap").style.display = m==="copy"?"":"none";
+}
+async function openAddVenue(){
   ["am-cat","am-team","am-code","am-name","am-addr"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("am-type").value="LIVE";
+  setAmMode("new");
+  // 填充可复制场馆下拉
+  const {data:vlist}=await sb.from("venues").select("id,c_code,category").order("sort_order");
+  const sel=document.getElementById("am-copysrc");
+  sel.innerHTML=(vlist||[]).map(v=>`<option value="${v.id}">${esc((v.c_code?v.c_code+" ":"")+(v.category||"未命名"))}</option>`).join("");
   addm.classList.add("on");
   setTimeout(()=>document.getElementById("am-cat").focus(),50);
 }
+document.getElementById("am-mnew").onclick=()=>setAmMode("new");
+document.getElementById("am-mcopy").onclick=async()=>{
+  setAmMode("copy");
+  const sel=document.getElementById("am-copysrc");
+  if(sel.value){ const {data:s}=await sb.from("venues").select("venue_name_jp,venue_address").eq("id",sel.value).single();
+    if(s){ document.getElementById("am-name").value=s.venue_name_jp||""; document.getElementById("am-addr").value=s.venue_address||""; } }
+};
+document.getElementById("am-copysrc").onchange=async(e)=>{
+  const {data:s}=await sb.from("venues").select("venue_name_jp,venue_address").eq("id",e.target.value).single();
+  if(s){ document.getElementById("am-name").value=s.venue_name_jp||""; document.getElementById("am-addr").value=s.venue_address||""; }
+};
 document.getElementById("am-cancel").onclick=()=>addm.classList.remove("on");
 addm.addEventListener("click",e=>{ if(e.target===addm) addm.classList.remove("on"); });
 document.getElementById("am-save").onclick=async()=>{
   const cat=document.getElementById("am-cat").value.trim();
   if(!cat){ toast("项目名称必填"); return; }
+  const g=id=>document.getElementById(id).value.trim();
   const vid=crypto.randomUUID();
-  const venue={ id:vid, category:cat,
-    team:document.getElementById("am-team").value.trim()||null,
-    c_code:document.getElementById("am-code").value.trim()||null,
-    venue_name_jp:document.getElementById("am-name").value.trim()||null,
-    venue_address:document.getElementById("am-addr").value.trim()||null,
+  const venue={ id:vid, category:cat, team:g("am-team")||null, c_code:g("am-code")||null,
+    venue_name_jp:g("am-name")||null, venue_address:g("am-addr")||null,
     team_type:document.getElementById("am-type").value, survey_done:false, sort_order:200 };
-  const {error}=await sb.from("venues").insert(venue);
-  if(error){ toast("建馆失败"); return; }
-  await sb.from("venue_photos").insert(ADD_SLOTS.map(s=>({venue_id:vid,slot_key:s[0],slot_group:s[1],slot_label:s[2],slot_type:s[3],storage_path:null,sort_order:s[4]})));
-  await logAct(vid,"新建场馆",cat);
-  addm.classList.remove("on"); toast("场馆已建好 ✓");
-  location.hash="#/venue/"+vid;
+  const saveBtn=document.getElementById("am-save"); saveBtn.disabled=true;
+  try{
+    if(amMode==="copy"){
+      const srcId=document.getElementById("am-copysrc").value;
+      if(!srcId){ toast("先选要复制的场馆"); saveBtn.disabled=false; return; }
+      saveBtn.textContent="复制中…";
+      const {data:src}=await sb.from("venues").select("*").eq("id",srcId).single();
+      const {data:srcPhotos}=await sb.from("venue_photos").select("*").eq("venue_id",srcId).is("hotel_id",null);
+      Object.assign(venue,{ nearest_transit:src.nearest_transit, parking_note:src.parking_note,
+        lat:src.lat, lng:src.lng, venue_intro:src.venue_intro, public_tips:src.public_tips, internal_note:src.internal_note });
+      const {error}=await sb.from("venues").insert(venue);
+      if(error){ toast("建馆失败"); saveBtn.disabled=false; saveBtn.textContent="建好，去填坑位"; return; }
+      await copyPhotos(srcPhotos||[], vid, null);
+      await logAct(vid,"复制场馆(自"+(src.category||"")+")",cat);
+    } else {
+      const {error}=await sb.from("venues").insert(venue);
+      if(error){ toast("建馆失败"); saveBtn.disabled=false; return; }
+      await sb.from("venue_photos").insert(ADD_SLOTS.map(s=>({venue_id:vid,slot_key:s[0],slot_group:s[1],slot_label:s[2],slot_type:s[3],storage_path:null,sort_order:s[4]})));
+      await logAct(vid,"新建场馆",cat);
+    }
+    addm.classList.remove("on"); toast("场馆已建好 ✓");
+    location.hash="#/venue/"+vid;
+  } finally { saveBtn.disabled=false; saveBtn.textContent="建好，去填坑位"; }
 };
 
 /* ---------------- 编辑场馆基本信息 ---------------- */

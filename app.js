@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=11";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=12";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -87,6 +87,13 @@ let toastT;
 function toast(msg){ toastEl.textContent=msg; toastEl.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove("on"),2200); }
 function pubUrl(path, v){ const u = sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl; return v? u+"?v="+encodeURIComponent(v): u; }
 function esc(s){ return (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+// 简介/说明里把顺序枚举(2、3、…)前面补换行，避免和时间等数字黏在一起(如 15:302、)
+function fmtIntro(t){
+  if(!t) return t;
+  let out=t;
+  for(let n=9;n>=2;n--){ out=out.split(n+"、").join("\n"+n+"、"); }
+  return out.replace(/\n{2,}/g,"\n").replace(/^\n/,"").trim();
+}
 
 // 浏览器内压缩：最长边 1600，JPEG 0.82
 async function compress(file){
@@ -254,7 +261,7 @@ async function renderDetail(id){
         <div class="hmeta"><span class="lab">停车</span><span>${esc(v.parking_note||"—")}</span></div>
       </div>
       <div id="detmap" class="detmap" style="margin-top:12px"></div>
-      ${v.venue_intro?`<div class="intro-box" style="margin-top:10px">${esc(v.venue_intro)}</div>`:""}
+      ${v.venue_intro?`<div class="intro-box" style="margin-top:10px">${esc(fmtIntro(v.venue_intro))}</div>`:""}
     </div>
 
     ${(()=>{ const ov=(photos||[]).filter(p=>p.slot_group==='概览'&&!p.hotel_id);
@@ -546,7 +553,7 @@ function hotelModuleHTML(h, photos, vid){
     ${SUBCATS.map(([cat,lab])=>{ const items=hp.filter(p=>p.slot_key.startsWith(cat+"_")&&!HMAIN.includes(p.slot_key));
       return (items.length||canEdit())?`<div class="subcat"><div class="subcat-t">${lab}</div>
         <div class="slots docs">${items.map(docSlotHTML).join("")}${canEdit()?addSlotBtnHTML(vid,h.id,cat):""}</div></div>`:""; }).join("")}
-    ${h.hotel_intro?`<div class="intro">${esc(h.hotel_intro)}</div>`:""}
+    ${h.hotel_intro?`<div class="intro">${esc(fmtIntro(h.hotel_intro))}</div>`:""}
     ${tipsCardHTML(h.public_tips, `tips-h-${h.id}`)}
     ${canEdit()?internalCardHTML(h.internal_note, `int-h-${h.id}`):""}
     ${myNoteHTML('hotel',h.id)}

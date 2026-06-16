@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=8";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=10";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -275,8 +275,7 @@ async function renderDetail(id){
     </div>
 
     <div class="section">
-      <div class="modules-head"><h3 style="margin:0"><span class="dot hotel"></span>酒店<span class="count">${hotels?.length||0} 家</span></h3>
-      ${canEdit()?`<button class="sec-edit" id="add-hotel">＋添加酒店</button>`:""}</div>
+      <h3><span class="dot dh"></span>🏨 酒店<span class="count">${hotels?.length||0} 家</span>${canEdit()?`<button class="sec-edit" id="add-hotel">＋添加酒店</button>`:""}</h3>
       ${(hotels&&hotels.length)? hotels.map(h=>hotelModuleHTML(h, photos, id)).join("") : `<div class="muted-empty">${canEdit()?"还没有酒店，点「＋添加酒店」录入":"暂无"}</div>`}
     </div>
 

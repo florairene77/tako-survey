@@ -326,3 +326,5 @@ a{color:inherit}
 .modeswitch{display:flex;gap:8px;margin:4px 0 12px}
 .modeswitch .ms{flex:1;padding:9px;border:1.5px solid var(--line);border-radius:11px;background:#fff;color:var(--muted);font-size:13px;font-weight:600}
 .modeswitch .ms.on{background:var(--sage);border-color:var(--sage);color:#fff}
+/* 拖拽上传高亮 */
+.slot.dragover,.docslot.dragover{outline:2.5px dashed var(--sage);outline-offset:-3px;background:var(--sage-soft)}

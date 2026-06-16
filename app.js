@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=14";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=15";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -421,7 +421,18 @@ async function renderDetail(id){
       toast("笔记已保存 ✓"); renderDetail(id);
     };
   });
-  // 添加 路线/餐饮/住宿/概览 坑位
+  // 概览/补充资料 坑位改名
+  app.querySelectorAll(".docrename").forEach(btn=>{
+    btn.onclick=async(e)=>{ e.stopPropagation();
+      const p=(photos||[]).find(x=>x.id===btn.dataset.pid); if(!p) return;
+      const name=(prompt("给这个格子起/改个名字：", p.slot_label||"")||"").trim();
+      if(!name || name===p.slot_label) return;
+      const {error}=await sb.from("venue_photos").update({slot_label:name}).eq("id",p.id);
+      if(error){ toast("改名失败"); return; }
+      await logAct(id,"重命名格子",name); toast("已改名 ✓"); renderDetail(id);
+    };
+  });
+  // 添加 概览/补充资料 坑位
   app.querySelectorAll(".addslot").forEach(el=>{
     el.onclick=async()=>{
       const scope=el.dataset.scope, hid=el.dataset.hid||null;
@@ -507,17 +518,19 @@ function extraHTML(e){
   </div>`;
 }
 function docSlotHTML(p){
+  const ren = canEdit()?`<button class="docrename" data-pid="${p.id}">✏️改名</button>`:"";
   if(p.storage_path){
     const note=(p.note||"").trim();
     const sub = note ? note : (p.caption||"");
     return `<div class="docslot${note?" hasnote":""}" data-pid="${p.id}"${note?` title="${esc(note)}"`:""}>
+      ${ren}
       <img loading="lazy" src="${pubUrl(p.storage_path,p.updated_at)}" alt="${esc(p.slot_label)}">
       <span class="dzoom">🔍 点开放大</span>
       <div class="dlabel">${note?`<span class="star">★</span>`:""}${esc(p.slot_label)}${sub?` · ${esc(sub)}`:""}</div>
     </div>`;
   }
   if(!canEdit()) return `<div class="docslot empty"><div class="ico">🖼️</div><div class="lab">${esc(p.slot_label)} · 暂无</div></div>`;
-  return `<div class="docslot empty" data-pid="${p.id}"><div class="ico">${p.slot_type==="paste"?"🖼️":"📷"}</div><div class="lab">${esc(p.slot_label)} · 点击上传</div></div>`;
+  return `<div class="docslot empty" data-pid="${p.id}">${ren}<div class="ico">${p.slot_type==="paste"?"🖼️":"📷"}</div><div class="lab">${esc(p.slot_label)} · 点击上传</div></div>`;
 }
 const HMAIN=["hotel_exterior","hotel_map","hotel_lobby","hotel_surround_1","hotel_surround_2","hotel_surround_3"];
 const SUBCATS=[["route","🗺 路线"],["dining","🍱 餐饮"],["lodging","🛏 住宿"]];

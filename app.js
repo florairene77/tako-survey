@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=16";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=17";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -128,7 +128,7 @@ let homeMap;
 async function renderHome(){
   app.innerHTML = `<div class="loading">加载场馆…</div>`;
   const { data:rawVenues, error } = await sb.from("venues")
-    .select("*, venue_photos(storage_path)")
+    .select("*, venue_photos(storage_path,slot_key,hotel_id)")
     .order("sort_order");
   if(error){ app.innerHTML=`<div class="loading">读取失败：${esc(error.message)}</div>`; return; }
 
@@ -172,7 +172,8 @@ async function renderHome(){
   function cardHTML(v){
     const slots = v.venue_photos||[]; const tot=slots.length||15;
     const fl = slots.filter(p=>p.storage_path).length;
-    const cover = slots.find(p=>p.storage_path);
+    // 封面统一用「场馆外观」，没有则回退到其它已填照片
+    const cover = slots.find(p=>p.slot_key==="venue_exterior"&&p.storage_path) || slots.find(p=>p.storage_path);
     const coverUrl = cover? pubUrl(cover.storage_path) : null;
     const pct = Math.round(fl/tot*100);
     return `<div class="vcard" data-id="${v.id}">

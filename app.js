@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=18";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=19";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -331,6 +331,10 @@ async function renderDetail(id){
         ${(acts&&acts.length)? acts.map(actHTML).join("") : `<div class="muted-empty">还没有编辑记录</div>`}
       </div>
     </details>`:""}
+    ${canEdit()?`<div class="section exportbox">
+      <button class="btn export-pack" id="export-pack">📦 导出图片包（${esc(v.c_code||"")} ${esc(v.category||"")}）</button>
+      <div class="hint-line" style="text-align:center;margin-top:8px">把本场馆所有照片按名字打包成 zip 下载（手册版 PPTX 请跟管理员说一声）</div>
+    </div>`:""}
     <div class="foot">${esc(v.c_code)} · 资料随踏勘持续更新</div>`;
 
   // 地图
@@ -483,6 +487,47 @@ async function renderDetail(id){
     await logAct(id, "写了踏勘说明", null);
     toast("已添加"); maybeThank(); renderDetail(id);
   };
+  // 导出图片包（浏览器内打包,免费自助）
+  const expBtn=app.querySelector("#export-pack");
+  if(expBtn) expBtn.onclick=()=>exportImagePack(v, hotels||[], photos||[], extras||[], expBtn);
+}
+
+// 文件名安全化
+function fnSafe(s){ s=(s||"").toString().trim()||"未命名"; return s.replace(/[\/\\:*?"<>|\n\t]/g,"_").slice(0,60); }
+// 浏览器内把本场馆所有照片按名字打包成 zip 下载
+async function exportImagePack(v, hotels, photos, extras, btn){
+  if(!window.JSZip){ toast("打包组件未加载，刷新重试"); return; }
+  const old=btn.textContent; btn.disabled=true; btn.textContent="打包中…请稍候";
+  try{
+    const zip=new JSZip();
+    const root=`${v.c_code||""}_${fnSafe(v.category)}_图片`;
+    const hidx={}, hname={};
+    hotels.forEach((h,i)=>{ hidx[h.id]=i+1; hname[h.id]=fnSafe(h.name||("酒店"+(i+1))); });
+    const used={};
+    const add=async(storage_path, name, sub)=>{
+      const blob=await fetch(pubUrl(storage_path)).then(r=>r.ok?r.blob():null);
+      if(!blob) return;
+      const base=fnSafe(name); const key=sub+"/"+base; used[key]=(used[key]||0)+1;
+      const fn=used[key]===1?base:`${base}_${used[key]}`;
+      zip.file(`${root}/${sub}/${fn}.jpg`, blob);
+    };
+    for(const p of photos.filter(x=>x.storage_path)){
+      const sub = p.hotel_id ? `酒店${hidx[p.hotel_id]||""}_${hname[p.hotel_id]||""}`
+                : p.slot_group==="概览"?"概览": p.slot_group==="场馆"?"场馆":"其它";
+      await add(p.storage_path, p.note||p.slot_label, sub);
+    }
+    for(const e of extras.filter(x=>x.storage_path)){
+      await add(e.storage_path, e.note||e.caption||"补充照片", "补充照片");
+    }
+    const content=await zip.generateAsync({type:"blob"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(content);
+    a.download=`${v.c_code||"场馆"}_${fnSafe(v.category)}_图片包.zip`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+    toast("图片包已生成 ✓");
+  }catch(err){ console.error(err); toast("打包失败："+(err.message||err)); }
+  finally{ btn.disabled=false; btn.textContent=old; }
 }
 
 function fmtPeriod(v){

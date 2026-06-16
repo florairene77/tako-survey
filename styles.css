@@ -318,3 +318,7 @@ a{color:inherit}
 /* 概览/补充资料 格子改名按钮 */
 .docrename{position:absolute;top:9px;left:9px;z-index:4;font-size:11px;padding:3px 9px;border-radius:8px;border:none;background:rgba(255,255,255,.93);color:var(--sage-d);font-weight:600;box-shadow:0 1px 4px rgba(63,77,74,.18)}
 .docslot.empty .docrename{background:#fff}
+/* 导出图片包按钮 */
+.exportbox{text-align:center}
+.export-pack{width:100%;padding:14px;font-size:15px;font-weight:700;background:var(--sage);color:#fff;border:none;border-radius:13px}
+.export-pack:disabled{opacity:.6}

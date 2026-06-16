@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=17";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=18";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -605,12 +605,17 @@ function pickAndUpload(p, el){
     el.classList.add("uploading");
     try{
       const blob=await compress(file);
-      const path=`${p.venue_id}/${p.slot_key}.jpg`;
+      // 路径含 hotel_id+随机串,避免多酒店相同 slot_key 撞车;已有图则原地替换
+      const path=p.storage_path || `${p.venue_id}/${p.hotel_id?(p.hotel_id.slice(0,8)+"_"):""}${p.slot_key}_${Math.random().toString(36).slice(2,6)}.jpg`;
       const {error:upErr}=await sb.storage.from(BUCKET).upload(path,blob,{upsert:true,contentType:"image/jpeg"});
       if(upErr) throw upErr;
-      const {error:dbErr}=await sb.from("venue_photos").update({storage_path:path,uploaded_by:whoami(),updated_at:new Date().toISOString()}).eq("id",p.id);
+      // 拍完即刻命名（导出文件名用；留空则用默认坑位名）
+      const nm=(prompt("给这张照片起个名字（导出图片时的文件名，可留空）：", (p.note||p.slot_label||"").trim())||"").trim();
+      const upd={storage_path:path,uploaded_by:whoami(),updated_at:new Date().toISOString()};
+      if(nm) upd.note=nm;
+      const {error:dbErr}=await sb.from("venue_photos").update(upd).eq("id",p.id);
       if(dbErr) throw dbErr;
-      await logAct(p.venue_id, wasReplace?"替换照片":"上传照片", p.slot_label);
+      await logAct(p.venue_id, wasReplace?"替换照片":"上传照片", nm||p.slot_label);
       toast(wasReplace?"已替换 ✓":"上传成功 ✓");
       maybeThank(); const id=p.venue_id; renderDetail(id);
     }catch(e){ console.error(e); toast("上传失败："+(e.message||e)); el.classList.remove("uploading"); }

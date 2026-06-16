@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=20";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=21";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -30,31 +30,14 @@ function enterApp(){ gate.style.display="none"; applyRoleBadge(); route(); }
 function tryUnlock(){
   const pw = document.getElementById("gate-pw").value.trim();
   let role=null;
-  if(pw === EDIT_PASSWORD) role="editor";
-  else if(pw === VIEW_PASSWORD) role="viewer";
+  if(/^[1-9]$/.test(pw) || pw === EDIT_PASSWORD) role="editor";   // 1-9 任意数字 = 编辑者（不分彼此）
+  else if(pw === VIEW_PASSWORD) role="viewer";                     // 只读 = tako2026
   if(!role){ document.getElementById("gate-err").textContent="密码不对，再试一次"; return; }
   sessionStorage.setItem("tako_role",role);
-  if(role==="editor"){
-    // 编辑者每次登录都必须重新填名字（同一密码可能多人用，保证编辑记录准确）
-    document.getElementById("gate-name").value="";
-    document.getElementById("gate-name-err").textContent="";
-    document.getElementById("gate-step-pw").style.display="none";
-    document.getElementById("gate-step-name").style.display="";
-    setTimeout(()=>document.getElementById("gate-name").focus(),60);
-  } else {
-    enterApp();
-  }
-}
-function submitName(){
-  const n=(document.getElementById("gate-name").value||"").trim();
-  if(!n){ document.getElementById("gate-name-err").textContent="填个名字吧，同事好知道是谁传的"; return; }
-  localStorage.setItem("tako_name", n);
   enterApp();
 }
 document.getElementById("gate-btn").onclick = tryUnlock;
 document.getElementById("gate-pw").addEventListener("keydown",e=>{ if(e.key==="Enter") tryUnlock(); });
-document.getElementById("gate-name-btn").onclick = submitName;
-document.getElementById("gate-name").addEventListener("keydown",e=>{ if(e.key==="Enter") submitName(); });
 if(unlocked()){ gate.style.display="none"; applyRoleBadge(); }
 
 /* 谢谢你小章鱼：渐显→停留~1秒→渐隐 */
@@ -68,11 +51,9 @@ function thankYou(){
 let VENUE_DONE=false;
 function maybeThank(){ if(VENUE_DONE) thankYou(); }
 
-/* 记住名字（踏勘说明署名 / 上传人） */
+/* 不再记录是谁（编辑者不分彼此），只记何时改了什么 */
 function whoami(){
-  let n = localStorage.getItem("tako_name");
-  if(!n){ n = prompt("第一次使用，请输入你的名字（用于标记是谁上传/记录的）：")||"同事"; localStorage.setItem("tako_name",n.trim()||"同事"); }
-  return n;
+  return null;
 }
 
 /* 写一条编辑记录（失败不阻断主流程） */
@@ -597,7 +578,7 @@ function myNoteHTML(key, hid){
   if(!canEdit()) return "";
   const rec=SNOTES.find(n=>n.section_key===key && (n.hotel_id||null)===(hid||null));
   const txt=rec?.note||"";
-  const meta=rec&&rec.updated_at?`${esc(rec.updated_by||"")} 改于 ${new Date(rec.updated_at).toLocaleDateString()}`:"";
+  const meta=rec&&rec.updated_at?`改于 ${new Date(rec.updated_at).toLocaleDateString()}`:"";
   return `<details class="mynote"${txt?" open":""}>
     <summary>📝 我的笔记（仅编辑可见）${txt?" · 已记":""}</summary>
     <textarea class="mynote-ta" placeholder="随手记，只有编辑能看到…">${esc(txt)}</textarea>
@@ -632,18 +613,17 @@ function hotelModuleHTML(h, photos, vid){
 function actHTML(a){
   const d=new Date(a.created_at);
   const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-  return `<div class="actrow"><span class="aw"><b>${esc(a.who||"某人")}</b> ${esc(a.action||"")}${a.target?` 〔${esc(a.target)}〕`:""}</span><span class="at">${ds}</span></div>`;
+  return `<div class="actrow"><span class="aw">${esc(a.action||"")}${a.target?` 〔${esc(a.target)}〕`:""}</span><span class="at">${ds}</span></div>`;
 }
 function logHTML(l){
   const d=new Date(l.created_at); const ds=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-  return `<div class="log"><div class="meta"><b>${esc(l.author||"同事")}</b> · ${ds}</div><div class="txt">${esc(l.content)}</div></div>`;
+  return `<div class="log"><div class="meta">${ds}</div><div class="txt">${esc(l.content)}</div></div>`;
 }
 
 /* ---------------- 上传 ---------------- */
 function pickAndUpload(p, el){
   const input=document.createElement("input");
-  input.type="file"; input.accept="image/*";
-  if(p.slot_type!=="paste") input.capture="environment"; // 拍照类直接调相机
+  input.type="file"; input.accept="image/*"; // 不加 capture：让用户自选「拍照」或「从相册选」
   input.onchange=async()=>{
     const file=input.files[0]; if(!file) return;
     const wasReplace=!!p.storage_path;
@@ -671,7 +651,7 @@ function pickAndUpload(p, el){
 /* 补充照片：随手拍，不限数量，可加备注 */
 function addExtraPhoto(venueId, el){
   const input=document.createElement("input");
-  input.type="file"; input.accept="image/*"; input.capture="environment";
+  input.type="file"; input.accept="image/*"; // 拍照或相册都可
   input.onchange=async()=>{
     const file=input.files[0]; if(!file) return;
     el.classList.add("uploading");
@@ -1126,7 +1106,7 @@ function replaceCur(){
 }
 function replaceExtra(e, venueId){
   const input=document.createElement("input");
-  input.type="file"; input.accept="image/*"; input.capture="environment";
+  input.type="file"; input.accept="image/*"; // 拍照或相册都可
   input.onchange=async()=>{
     const file=input.files[0]; if(!file) return;
     try{

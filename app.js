@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=27";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=28";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1034,12 +1034,11 @@ document.getElementById("hm-save").onclick=async()=>{
 
 /* ---------------- 添加场馆 ---------------- */
 const addm=document.getElementById("addm");
+// 新建场馆只配 概览+场馆 共9坑；酒店坑由「添加酒店」时各自生成(避免无主幽灵坑)
 const ADD_SLOTS=[
  ["route_map","概览","谷歌路线图（酒店→场馆）","paste",1],["lodging_table","概览","住宿信息表","paste",2],["dining_table","概览","餐饮信息统计表","paste",3],
  ["venue_exterior","场馆","场馆外观","photo",4],["venue_map","场馆","场馆谷歌地图","paste",5],["venue_parking","场馆","上车点／大巴停车场","photo",6],
  ["venue_surround_1","场馆","场馆周边①","photo",7],["venue_surround_2","场馆","场馆周边②","photo",8],["venue_surround_3","场馆","场馆周边③","photo",9],
- ["hotel_exterior","酒店","酒店外观","photo",10],["hotel_map","酒店","酒店官网及周边地图","paste",11],["hotel_lobby","酒店","酒店大堂","photo",12],
- ["hotel_surround_1","酒店","酒店周边①","photo",13],["hotel_surround_2","酒店","酒店周边②","photo",14],["hotel_surround_3","酒店","酒店周边③","photo",15],
 ];
 let amMode="new";
 // 独立拷贝照片（下载原图→上传到新路径→插入新行，互不影响）

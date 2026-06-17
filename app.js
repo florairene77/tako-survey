@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=29";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=30";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -279,30 +279,51 @@ async function renderWarehouse(){
     sb.from("extra_photos").select("*").not("archived_at","is",null).order("archived_at",{ascending:false}),
     sb.from("venues").select("id,c_code,category"),
   ]);
-  const vmap={}; (vs||[]).forEach(v=>vmap[v.id]=((v.c_code?v.c_code+" ":"")+(v.category||"")).trim()||"未命名场馆");
+  const vsorted=(vs||[]).slice().sort((a,b)=>((a.c_code||"zz")+"").localeCompare((b.c_code||"zz")+""));
+  const vmap={}; vsorted.forEach(v=>vmap[v.id]=((v.c_code?v.c_code+" ":"")+(v.category||"")).trim()||"未命名场馆");
+  const vopts=(sel)=>vsorted.map(v=>`<option value="${v.id}"${v.id===sel?" selected":""}>${esc(vmap[v.id])}</option>`).join("");
   const empty=(!hotels||!hotels.length)&&(!exphotos||!exphotos.length);
   app.innerHTML=`
-    <div class="wh-intro">📦 暂时收起来的酒店和照片都在这里。<b>不会真删</b>，需要时点「♻️ 捞回来」就回到原来的场馆。</div>
+    <div class="wh-intro">📦 暂时收起来的酒店和照片都在这里。<b>不会真删</b>。捞酒店时可以<b>选捞到哪个场馆</b>（连照片一起搬过去），照片默认回原场馆。</div>
     ${empty?`<div class="muted-empty" style="margin-top:24px">仓库是空的 ✨ —— 没有被收起来的东西</div>`:""}
     ${(hotels&&hotels.length)?`<div class="section"><h3><span class="dot dh"></span>🏨 收起来的酒店<span class="count">${hotels.length} 家</span></h3>
       ${hotels.map(h=>`<div class="wh-row">
         <div class="wh-info"><div class="wh-name">${esc(h.name||"未命名酒店")}</div><div class="wh-meta">原属：${esc(vmap[h.venue_id]||"—")}${h.address?` · ${esc(h.address)}`:""}</div></div>
-        <button class="btn-sm wh-restore" data-kind="hotel" data-id="${h.id}">♻️ 捞回来</button>
+        <div class="wh-ctrl">
+          <label class="wh-ctrl-lab">捞到 →</label>
+          <select class="wh-target" data-id="${h.id}">${vopts(h.venue_id)}</select>
+          <button class="btn-sm wh-restore" data-kind="hotel" data-id="${h.id}">♻️ 捞回来</button>
+        </div>
       </div>`).join("")}</div>`:""}
     ${(exphotos&&exphotos.length)?`<div class="section"><h3><span class="dot"></span>📷 收起来的补充照片<span class="count">${exphotos.length} 张</span></h3>
       <div class="wh-photos">${exphotos.map(e=>`<div class="wh-photo">
         <img src="${pubUrl(e.storage_path)}" alt="" loading="lazy">
         <div class="wh-photo-meta">${esc(e.note||"补充照片")}<br><span class="muted">${esc(vmap[e.venue_id]||"—")}</span></div>
-        <button class="btn-sm wh-restore" data-kind="extra" data-id="${e.id}">♻️ 捞回来</button>
+        <button class="btn-sm wh-restore" data-kind="extra" data-id="${e.id}">♻️ 捞回原场馆</button>
       </div>`).join("")}</div></div>`:""}
   `;
   app.querySelectorAll(".wh-restore").forEach(btn=>{
     btn.onclick=async()=>{
-      const tbl=btn.dataset.kind==="hotel"?"venue_hotels":"extra_photos";
       btn.disabled=true;
-      const {error}=await sb.from(tbl).update({archived_at:null}).eq("id",btn.dataset.id);
-      if(error){ toast("捞回失败"); btn.disabled=false; return; }
-      toast("已捞回 ✓"); renderWarehouse();
+      if(btn.dataset.kind==="hotel"){
+        const hid=btn.dataset.id;
+        const h=(hotels||[]).find(x=>x.id===hid);
+        const target=app.querySelector(`.wh-target[data-id="${hid}"]`)?.value || h.venue_id;
+        const upd={archived_at:null}; if(target) upd.venue_id=target;
+        const {error}=await sb.from("venue_hotels").update(upd).eq("id",hid);
+        if(error){ toast("捞回失败"); btn.disabled=false; return; }
+        if(target && target!==h.venue_id){   // 捞到别的场馆=连照片+笔记一起搬
+          await sb.from("venue_photos").update({venue_id:target}).eq("hotel_id",hid);
+          await sb.from("section_notes").update({venue_id:target}).eq("hotel_id",hid);
+          await logAct(target,"从仓库捞入酒店",h.name||"酒店");
+        }
+        toast("已捞到 "+(vmap[target]||"场馆")+" ✓");
+      } else {
+        const {error}=await sb.from("extra_photos").update({archived_at:null}).eq("id",btn.dataset.id);
+        if(error){ toast("捞回失败"); btn.disabled=false; return; }
+        toast("已捞回 ✓");
+      }
+      renderWarehouse();
     };
   });
 }

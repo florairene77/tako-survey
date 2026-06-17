@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TAKO 亚运后勤资源库</title>
-<link rel="manifest" href="manifest.json?v=25">
+<link rel="manifest" href="manifest.json?v=26">
 <meta name="theme-color" content="#7bab95">
-<link rel="apple-touch-icon" href="icon-180.png?v=25">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=25">
-<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=25">
-<link rel="shortcut icon" href="favicon-32.png?v=25">
+<link rel="apple-touch-icon" href="icon-180.png?v=26">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=26">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=26">
+<link rel="shortcut icon" href="favicon-32.png?v=26">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="TAKO">
@@ -17,14 +17,14 @@
 <script src="vendor/leaflet.js"></script>
 <script src="vendor/supabase.js"></script>
 <script src="vendor/jszip.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=25">
+<link rel="stylesheet" href="styles.css?v=26">
 </head>
 <body>
 
 <!-- 登录闸 -->
 <div id="gate">
   <div class="box">
-    <img class="gate-logo" src="logo-full.png?v=25" alt="TAKO 名古屋亚运会后勤统筹系统">
+    <img class="gate-logo" src="logo-full.png?v=26" alt="TAKO 名古屋亚运会后勤统筹系统">
     <p>HB 后勤组 · 内部共享</p>
     <div id="gate-step-pw">
       <input id="gate-pw" type="password" inputmode="text" placeholder="输入访问密码" autocomplete="off">
@@ -43,7 +43,7 @@
 <div class="topbar">
   <div class="inner">
     <button class="back" id="backbtn" style="display:none">‹</button>
-    <img class="logo-img" src="logo-mascot.png?v=25" alt="TAKO">
+    <img class="logo-img" src="logo-mascot.png?v=26" alt="TAKO">
     <div>
       <div class="title">TAKO</div>
       <div class="sub">名古屋亚运会后勤统筹系统</div>
@@ -93,13 +93,19 @@
     <div class="ntitle">编辑酒店信息</div>
     <div class="modeswitch" id="hm-modesw" style="display:none"><button class="ms on" data-m="new" id="hm-mnew">🆕 新建</button><button class="ms" data-m="copy" id="hm-mcopy">📋 复制现有酒店</button></div>
     <div id="hm-copywrap" style="display:none"><label class="fl">复制哪个酒店（信息+照片一起）</label><select id="hm-copysrc"></select></div>
-    <label class="fl">酒店名称</label><input id="hm-name" type="text">
-    <label class="fl">地址（可能会变）</label><input id="hm-address" type="text">
-    <label class="fl">房型</label><input id="hm-room" type="text">
-    <label class="fl">最近交通</label><input id="hm-transit" type="text">
-    <label class="fl">到场馆车程</label><input id="hm-travel" type="text">
-    <label class="fl">官网链接</label><input id="hm-url" type="text">
-    <label class="fl">简要介绍（公开）</label><textarea id="hm-intro"></textarea>
+    <div id="hm-pastewrap" class="pastewrap" style="display:none">
+      <label class="fl">📋 一键粘贴识别（把酒店信息整段贴进来，点识别自动分类）</label>
+      <textarea id="hm-paste" autocomplete="off" placeholder="例：&#10;アパホテル名古屋栄&#10;地址：愛知県名古屋市中区栄4-10-16&#10;房型：双床房&#10;最近交通：地铁久屋大通站步行2分钟&#10;到场馆车程：约30分钟&#10;官网：https://...&#10;介绍：商务酒店，含早餐800日元/人"></textarea>
+      <button class="btn" id="hm-parse" type="button">✨ 识别并填入下面</button>
+      <div class="pastehint">识别后请核对各字段，没分对的手动挪一下即可</div>
+    </div>
+    <label class="fl">酒店名称</label><input id="hm-name" type="text" autocomplete="off">
+    <label class="fl">地址（可能会变）</label><input id="hm-address" type="text" autocomplete="off">
+    <label class="fl">房型</label><input id="hm-room" type="text" autocomplete="off">
+    <label class="fl">最近交通</label><input id="hm-transit" type="text" autocomplete="off">
+    <label class="fl">到场馆车程</label><input id="hm-travel" type="text" autocomplete="off">
+    <label class="fl">官网链接</label><input id="hm-url" type="text" autocomplete="off">
+    <label class="fl">简要介绍（公开）</label><textarea id="hm-intro" autocomplete="off"></textarea>
     <div class="nacts">
       <button class="btn ghost" id="hm-cancel">取消</button>
       <button class="btn" id="hm-save">保存</button>
@@ -111,15 +117,15 @@
 <div id="herom">
   <div class="nbox">
     <div class="ntitle">编辑项目概览</div>
-    <label class="fl">项目名称</label><input id="hr-cat" type="text">
-    <label class="fl">执行团队 / 城市</label><input id="hr-team" type="text">
-    <label class="fl">C 码</label><input id="hr-code" type="text">
+    <label class="fl">项目名称</label><input id="hr-cat" type="text" autocomplete="off">
+    <label class="fl">执行团队 / 城市</label><input id="hr-team" type="text" autocomplete="off">
+    <label class="fl">C 码</label><input id="hr-code" type="text" autocomplete="off">
     <label class="fl">类型</label>
     <select id="hr-type"><option value="LIVE">LIVE</option><option value="ENG">ENG</option><option value="BOTH">LIVE+ENG</option></select>
-    <label class="fl">实测车程</label><input id="hr-travel" type="text">
+    <label class="fl">实测车程</label><input id="hr-travel" type="text" autocomplete="off">
     <label class="fl">工作区间 开始</label><input id="hr-start" type="date">
     <label class="fl">工作区间 结束</label><input id="hr-end" type="date">
-    <label class="fl">团队人数</label><input id="hr-size" type="text">
+    <label class="fl">团队人数</label><input id="hr-size" type="text" autocomplete="off">
     <div class="nacts">
       <button class="btn ghost" id="hr-cancel">取消</button>
       <button class="btn" id="hr-save">保存</button>
@@ -131,10 +137,10 @@
 <div id="venuem">
   <div class="nbox">
     <div class="ntitle">编辑基本信息</div>
-    <label class="fl">场馆名（日文）</label><input id="vm-name" type="text">
-    <label class="fl">场馆地址</label><input id="vm-addr" type="text">
-    <label class="fl">最近公共交通</label><input id="vm-transit" type="text">
-    <label class="fl">停车说明</label><input id="vm-parking" type="text">
+    <label class="fl">场馆名（日文）</label><input id="vm-name" type="text" autocomplete="off">
+    <label class="fl">场馆地址</label><input id="vm-addr" type="text" autocomplete="off">
+    <label class="fl">最近公共交通</label><input id="vm-transit" type="text" autocomplete="off">
+    <label class="fl">停车说明</label><input id="vm-parking" type="text" autocomplete="off">
     <label class="fl">场馆简要介绍（前台所有人可见）</label><textarea id="vm-intro"></textarea>
     <div class="nacts">
       <button class="btn ghost" id="vm-cancel">取消</button>
@@ -147,10 +153,10 @@
 <div id="eventm">
   <div class="nbox">
     <div class="ntitle" id="eventm-title">比赛项目</div>
-    <label class="fl">项目名称（中文）</label><input id="em-name" type="text">
-    <label class="fl">English</label><input id="em-en" type="text">
-    <label class="fl">日文</label><input id="em-jp" type="text">
-    <label class="fl">日程（如 9/9 – 10/4）</label><input id="em-sched" type="text">
+    <label class="fl">项目名称（中文）</label><input id="em-name" type="text" autocomplete="off">
+    <label class="fl">English</label><input id="em-en" type="text" autocomplete="off">
+    <label class="fl">日文</label><input id="em-jp" type="text" autocomplete="off">
+    <label class="fl">日程（如 9/9 – 10/4）</label><input id="em-sched" type="text" autocomplete="off">
     <div class="nacts">
       <button class="btn ghost" id="em-cancel">取消</button>
       <button class="btn" id="em-save">保存</button>
@@ -178,11 +184,11 @@
     <div class="ntitle">＋ 添加场馆</div>
     <div class="modeswitch"><button class="ms on" data-m="new" id="am-mnew">🆕 新建</button><button class="ms" data-m="copy" id="am-mcopy">📋 复制现有场馆</button></div>
     <div id="am-copywrap" style="display:none"><label class="fl">复制哪个场馆（信息+照片一起）</label><select id="am-copysrc"></select></div>
-    <label class="fl">项目名称 *（如：足球、沙滩排球）</label><input id="am-cat" type="text">
-    <label class="fl">执行团队 / 城市</label><input id="am-team" type="text">
-    <label class="fl">C 码（如有，如 C12）</label><input id="am-code" type="text">
-    <label class="fl">场馆名（日文，可后补）</label><input id="am-name" type="text">
-    <label class="fl">场馆地址（可后补）</label><input id="am-addr" type="text">
+    <label class="fl">项目名称 *（如：足球、沙滩排球）</label><input id="am-cat" type="text" autocomplete="off">
+    <label class="fl">执行团队 / 城市</label><input id="am-team" type="text" autocomplete="off">
+    <label class="fl">C 码（如有，如 C12）</label><input id="am-code" type="text" autocomplete="off">
+    <label class="fl">场馆名（日文，可后补）</label><input id="am-name" type="text" autocomplete="off">
+    <label class="fl">场馆地址（可后补）</label><input id="am-addr" type="text" autocomplete="off">
     <label class="fl">类型</label>
     <select id="am-type"><option value="LIVE">LIVE</option><option value="ENG">ENG</option><option value="BOTH">LIVE+ENG</option></select>
     <div class="nacts">
@@ -195,13 +201,13 @@
 <!-- 谢谢你小章鱼 -->
 <div id="thankyou">
   <div class="ty-card">
-    <img src="thankyou.png?v=25" alt="谢谢你">
+    <img src="thankyou.png?v=26" alt="谢谢你">
     <div class="ty-sub">踏勘成果已记录 · 辛苦啦</div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script type="module" src="app.js?v=25"></script>
+<script type="module" src="app.js?v=26"></script>
 </body>
 </html>

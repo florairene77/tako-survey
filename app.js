@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=25";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=26";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -366,8 +366,13 @@ async function renderDetail(id){
         <div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>
       </div>
       <div class="progress-wrap">
-        <div class="ptitle">📋 踏勘进度 · ${filled}/${total} 个坑位已填</div>
+        <div class="ptitle">📋 踏勘进度 · ${filled}/${total} 个坑位已填（自动统计）</div>
         <div class="pbar${(total&&filled>=total)?' full':''}"><i data-pct="${pct}"></i></div>
+        <div class="prog-note">
+          <div class="prog-note-lab">✍️ 进度备注（自己写，比如还差什么）</div>
+          <textarea id="prog-txt" autocomplete="off" placeholder="例：还差住宿表和2张周边图；早餐价格待确认…">${esc(v.survey_progress||"")}</textarea>
+          <div class="prog-note-row"><button class="btn-sm" id="prog-save">保存进度备注</button></div>
+        </div>
         <div class="done-row">${v.survey_done
           ? `<span class="done-badge">✓ 踏勘已完成</span>`
           : `<button class="done-btn" id="survey-done">踏勘完成</button>`}</div>
@@ -408,6 +413,14 @@ async function renderDetail(id){
 
   // 进度条加载动画
   setTimeout(()=>{ const bar=app.querySelector(".pbar i"); if(bar) bar.style.width=(bar.dataset.pct||0)+"%"; },120);
+  // 进度备注（编辑自己写）
+  const progSave=app.querySelector("#prog-save");
+  if(progSave) progSave.onclick=async()=>{
+    const txt=app.querySelector("#prog-txt").value.trim();
+    const {error}=await sb.from("venues").update({survey_progress:txt||null}).eq("id",id);
+    if(error){ toast("保存失败"); return; }
+    await logAct(id,"更新进度备注",null); toast("进度已保存 ✓"); maybeThank();
+  };
   // 踏勘完成
   const doneBtn=app.querySelector("#survey-done");
   if(doneBtn) doneBtn.onclick=async()=>{
@@ -676,9 +689,9 @@ function hotelModuleHTML(h, photos, vid){
   const hp=(photos||[]).filter(p=>p.hotel_id===h.id);
   const main=HMAIN.map(k=>hp.find(p=>p.slot_key===k)).filter(Boolean);
   return `<div class="module module-hotel">
+    ${canEdit()?`<div class="hbar"><span class="hbar-tag">🏨 酒店</span><span class="hacts"><button class="hedit" data-hid="${h.id}">✏️ 改信息</button><button class="hmig" data-hid="${h.id}">🔀 迁移</button><button class="hdel del" data-hid="${h.id}">🗑 删</button></span></div>`:""}
     <div class="mh-head">
-      <div class="hn">🏨 ${esc(h.name||"")}</div>
-      ${canEdit()?`<span class="hacts"><button class="hedit" data-hid="${h.id}">改</button><button class="hmig" data-hid="${h.id}">迁</button><button class="hdel del" data-hid="${h.id}">删</button></span>`:""}
+      <div class="hn">${canEdit()?"":"🏨 "}${esc(h.name||"")}</div>
     </div>
     <div class="hmeta"><span class="lab">地址</span><span>${esc(h.address||"—")}</span></div>
     <div class="hmeta"><span class="lab">房型</span><span>${esc(h.room_type||"—")}</span></div>
@@ -835,10 +848,62 @@ function setHmMode(m){
   document.getElementById("hm-mnew").classList.toggle("on",m==="new");
   document.getElementById("hm-mcopy").classList.toggle("on",m==="copy");
   document.getElementById("hm-copywrap").style.display = m==="copy"?"":"none";
+  document.getElementById("hm-pastewrap").style.display = m==="new"?"":"none";  // 粘贴识别仅新建时
+}
+
+/* 智能粘贴：把一整段酒店信息按关键词/格式分类到各字段 */
+function parseHotelBlob(raw){
+  const out={name:"",address:"",room:"",transit:"",travel:"",url:"",intro:""};
+  if(!raw||!raw.trim()) return out;
+  const text=raw.replace(/\r/g,"").trim();
+  // 先抓 URL（任何位置）
+  const um=text.match(/https?:\/\/[^\s，。、]+/);
+  if(um) out.url=um[0];
+  const lines=text.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  // 字段关键词 → 目标。labelRe=带标签前缀；valRe=无标签时按内容猜
+  const RULES=[
+    ["name",    /^(酒店名称|酒店名|名称|宾馆|hotel|ホテル名)[:：\s]/, null],
+    ["address", /^(地址|住所|所在地|位置|住址)[:：\s]/, /(愛知県|爱知县|〒\s?\d|[都道府県市区町村].*\d|丁目|番地|号$)/],
+    ["room",    /^(房型|房間|房间|户型|room|客室)[:：\s]/, /(单人|双人|双床|大床|标间|标准间|单间|和室|洋室|ツイン|ダブル|シングル)/],
+    ["transit", /^(最近交通|交通|最寄|公共交通|车站|車站)[:：\s]/, /(地铁|地下鉄|电车|電車|徒歩|步行|駅|车站|公交|巴士|号线)/],
+    ["travel",  /^(到场馆车程|车程|車程|到场馆|距场馆|drive)[:：\s]/, /((开车|駕車|大巴|车程).{0,6}\d|约?\s?\d+\s?(分钟|min))/],
+    ["url",     /^(官网|网址|網址|链接|連結|url|主页|官方网站)[:：\s]/, /https?:\/\//],
+    ["intro",   /^(简要介绍|介绍|介紹|简介|簡介|说明|備考|备注|概要|intro)[:：\s]/, null],
+  ];
+  let introLines=[], nameSet=false;
+  for(let i=0;i<lines.length;i++){
+    let ln=lines[i];
+    // 1) 带标签的行 → 直接归类
+    let matched=false;
+    for(const [key,labelRe,valRe] of RULES){
+      if(labelRe.test(ln)){
+        const v=ln.replace(labelRe,"").trim();
+        if(key==="intro"){ if(v) introLines.push(v); }
+        else if(key==="name"){ if(v){out.name=v;nameSet=true;} }
+        else if(!out[key]||key==="url") out[key]=v||out[key];
+        matched=true; break;
+      }
+    }
+    if(matched) continue;
+    // 2) 第一个无标签行 → 当酒店名（几乎总在首行，常含地名，不让内容正则抢走）
+    if(!nameSet && !out.name){ out.name=ln; nameSet=true; continue; }
+    // 3) 其余无标签行：按内容特征猜
+    let guessed=false;
+    for(const [key,labelRe,valRe] of RULES){
+      if(key==="intro"||key==="url"||key==="name") continue;
+      if(valRe&&valRe.test(ln)&&!out[key]){ out[key]=ln; guessed=true; break; }
+    }
+    if(guessed) continue;
+    introLines.push(ln);   // 兜底进介绍
+  }
+  if(introLines.length) out.intro=(out.intro?out.intro+"\n":"")+introLines.join("\n");
+  // URL 若在介绍里重复出现就从介绍剔除
+  if(out.url) out.intro=out.intro.replace(out.url,"").replace(/官网[:：]?\s*$/,"").trim();
+  return out;
 }
 async function openAddHotel(venueId){
   hotelEditing={id:null, venueId};
-  ["hm-name","hm-address","hm-room","hm-transit","hm-travel","hm-url","hm-intro"].forEach(i=>document.getElementById(i).value="");
+  ["hm-name","hm-address","hm-room","hm-transit","hm-travel","hm-url","hm-intro","hm-paste"].forEach(i=>document.getElementById(i).value="");
   document.querySelector("#hotelm .ntitle").textContent="添加酒店";
   document.getElementById("hm-modesw").style.display="";   // 仅新增时显示模式切换
   setHmMode("new");
@@ -856,6 +921,7 @@ function openHotelEditor(h, venueId){
   hotelEditing={id:h.id, venueId};
   document.getElementById("hm-modesw").style.display="none";   // 编辑时不显示
   document.getElementById("hm-copywrap").style.display="none";
+  document.getElementById("hm-pastewrap").style.display="none";
   document.querySelector("#hotelm .ntitle").textContent="编辑酒店信息";
   document.getElementById("hm-name").value=h.name||"";
   document.getElementById("hm-address").value=h.address||"";
@@ -867,6 +933,15 @@ function openHotelEditor(h, venueId){
   hotelm.classList.add("on");
 }
 document.getElementById("hm-cancel").onclick=()=>hotelm.classList.remove("on");
+document.getElementById("hm-parse").onclick=()=>{
+  const raw=document.getElementById("hm-paste").value;
+  if(!raw.trim()){ toast("先把酒店信息贴进上面的框"); return; }
+  const p=parseHotelBlob(raw);
+  const setIf=(id,val)=>{ const el=document.getElementById(id); if(val) el.value=val; };
+  setIf("hm-name",p.name); setIf("hm-address",p.address); setIf("hm-room",p.room);
+  setIf("hm-transit",p.transit); setIf("hm-travel",p.travel); setIf("hm-url",p.url); setIf("hm-intro",p.intro);
+  toast("已识别填入，请核对 ✓");
+};
 document.getElementById("hm-mnew").onclick=()=>setHmMode("new");
 document.getElementById("hm-mcopy").onclick=async()=>{ setHmMode("copy");
   const id=document.getElementById("hm-copysrc").value; if(id) await hmPrefill(id); };
@@ -915,7 +990,7 @@ document.getElementById("hm-save").onclick=async()=>{
     hotelm.classList.remove("on"); toast("已保存"); maybeThank(); renderDetail(hotelEditing.venueId);
   } finally { saveBtn.disabled=false; saveBtn.textContent="保存"; }
 };
-hotelm.addEventListener("click",e=>{ if(e.target===hotelm) hotelm.classList.remove("on"); });
+/* 录入类弹窗不再「点背景关闭」——防止填一半误触背景把弹窗关掉丢数据（之前 Chrome 上反映的"输入几下退回场馆页"） */
 
 /* ---------------- 添加场馆 ---------------- */
 const addm=document.getElementById("addm");
@@ -975,7 +1050,7 @@ document.getElementById("am-copysrc").onchange=async(e)=>{
   if(s){ document.getElementById("am-name").value=s.venue_name_jp||""; document.getElementById("am-addr").value=s.venue_address||""; }
 };
 document.getElementById("am-cancel").onclick=()=>addm.classList.remove("on");
-addm.addEventListener("click",e=>{ if(e.target===addm) addm.classList.remove("on"); });
+/* addm 同 hotelm：去掉点背景关闭，防误关丢数据 */
 document.getElementById("am-save").onclick=async()=>{
   const cat=document.getElementById("am-cat").value.trim();
   if(!cat){ toast("项目名称必填"); return; }
@@ -1022,7 +1097,7 @@ function openHeroEditor(v){
   herom.classList.add("on");
 }
 document.getElementById("hr-cancel").onclick=()=>herom.classList.remove("on");
-herom.addEventListener("click",e=>{ if(e.target===herom) herom.classList.remove("on"); });
+/* herom 同 hotelm：去掉点背景关闭，防误关丢数据 */
 document.getElementById("hr-save").onclick=async()=>{
   if(!heroEditing) return;
   const g=id=>document.getElementById(id).value.trim();
@@ -1048,7 +1123,7 @@ function openVenueEditor(v){
   venuem.classList.add("on");
 }
 document.getElementById("vm-cancel").onclick=()=>venuem.classList.remove("on");
-venuem.addEventListener("click",e=>{ if(e.target===venuem) venuem.classList.remove("on"); });
+/* venuem 同 hotelm：去掉点背景关闭，防误关丢数据 */
 document.getElementById("vm-save").onclick=async()=>{
   if(!venueEditing) return;
   const g=id=>document.getElementById(id).value.trim();
@@ -1074,7 +1149,7 @@ function openEventEditor(e, venueId){
   setTimeout(()=>document.getElementById("em-name").focus(),50);
 }
 document.getElementById("em-cancel").onclick=()=>eventm.classList.remove("on");
-eventm.addEventListener("click",e=>{ if(e.target===eventm) eventm.classList.remove("on"); });
+/* eventm 同 hotelm：去掉点背景关闭，防误关丢数据 */
 document.getElementById("em-save").onclick=async()=>{
   if(!eventEditing) return;
   const g=id=>document.getElementById(id).value.trim();

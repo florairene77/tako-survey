@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=26";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=27";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -96,6 +96,7 @@ function route(){
   const m = location.hash.match(/#\/venue\/([\w-]+)/);
   if(m){ backbtn.style.display="block"; renderDetail(m[1]); }
   else if(location.hash.startsWith("#/transport")){ backbtn.style.display="block"; renderTransport(); }
+  else if(location.hash.startsWith("#/warehouse")){ backbtn.style.display="block"; renderWarehouse(); }
   else { backbtn.style.display="none"; renderHome(); }
   window.scrollTo(0,0);
 }
@@ -138,6 +139,7 @@ async function renderHome(){
         </div>
       </div>
       <button class="navbtn" id="nav-transport"><span class="ni">🚗</span><span class="nt"><b>交通 · 司机调配</b><span>${canEdit()?"司机信息库 · 按公司/名字查找":"司机交通调配（同步中）"}</span></span><span class="na">›</span></button>
+      ${canEdit()?`<button class="navbtn" id="nav-warehouse"><span class="ni">🗄</span><span class="nt"><b>仓库</b><span>暂时收起的酒店/照片 · 随时捞回来</span></span><span class="na">›</span></button>`:""}
       <div id="map"></div>
       <div class="maplegend">
         <span><i style="background:#7bab95"></i>LIVE</span>
@@ -151,6 +153,7 @@ async function renderHome(){
     app.querySelectorAll(".vcard:not(.addcard)").forEach(el=>el.onclick=()=>location.hash="#/venue/"+el.dataset.id);
     const addc=app.querySelector("#add-venue-card"); if(addc) addc.onclick=openAddVenue;
     const navt=app.querySelector("#nav-transport"); if(navt) navt.onclick=()=>location.hash="#/transport";
+    const navw=app.querySelector("#nav-warehouse"); if(navw) navw.onclick=()=>location.hash="#/warehouse";
     drawMap(list);
   }
   function cardHTML(v){
@@ -267,6 +270,43 @@ function openDriverEdit(d){
     .then(({error})=>{ if(error){toast("保存失败");return;} toast("已保存 ✓"); renderTransport(); });
 }
 
+/* ---------------- 仓库（软删除存放处，可捞回来）---------------- */
+async function renderWarehouse(){
+  if(!canEdit()){ location.hash="#/"; return; }
+  app.innerHTML=`<div class="loading">加载仓库…</div>`;
+  const [{data:hotels},{data:exphotos},{data:vs}]=await Promise.all([
+    sb.from("venue_hotels").select("*").not("archived_at","is",null).order("archived_at",{ascending:false}),
+    sb.from("extra_photos").select("*").not("archived_at","is",null).order("archived_at",{ascending:false}),
+    sb.from("venues").select("id,c_code,category"),
+  ]);
+  const vmap={}; (vs||[]).forEach(v=>vmap[v.id]=((v.c_code?v.c_code+" ":"")+(v.category||"")).trim()||"未命名场馆");
+  const empty=(!hotels||!hotels.length)&&(!exphotos||!exphotos.length);
+  app.innerHTML=`
+    <div class="wh-intro">📦 暂时收起来的酒店和照片都在这里。<b>不会真删</b>，需要时点「♻️ 捞回来」就回到原来的场馆。</div>
+    ${empty?`<div class="muted-empty" style="margin-top:24px">仓库是空的 ✨ —— 没有被收起来的东西</div>`:""}
+    ${(hotels&&hotels.length)?`<div class="section"><h3><span class="dot dh"></span>🏨 收起来的酒店<span class="count">${hotels.length} 家</span></h3>
+      ${hotels.map(h=>`<div class="wh-row">
+        <div class="wh-info"><div class="wh-name">${esc(h.name||"未命名酒店")}</div><div class="wh-meta">原属：${esc(vmap[h.venue_id]||"—")}${h.address?` · ${esc(h.address)}`:""}</div></div>
+        <button class="btn-sm wh-restore" data-kind="hotel" data-id="${h.id}">♻️ 捞回来</button>
+      </div>`).join("")}</div>`:""}
+    ${(exphotos&&exphotos.length)?`<div class="section"><h3><span class="dot"></span>📷 收起来的补充照片<span class="count">${exphotos.length} 张</span></h3>
+      <div class="wh-photos">${exphotos.map(e=>`<div class="wh-photo">
+        <img src="${pubUrl(e.storage_path)}" alt="" loading="lazy">
+        <div class="wh-photo-meta">${esc(e.note||"补充照片")}<br><span class="muted">${esc(vmap[e.venue_id]||"—")}</span></div>
+        <button class="btn-sm wh-restore" data-kind="extra" data-id="${e.id}">♻️ 捞回来</button>
+      </div>`).join("")}</div></div>`:""}
+  `;
+  app.querySelectorAll(".wh-restore").forEach(btn=>{
+    btn.onclick=async()=>{
+      const tbl=btn.dataset.kind==="hotel"?"venue_hotels":"extra_photos";
+      btn.disabled=true;
+      const {error}=await sb.from(tbl).update({archived_at:null}).eq("id",btn.dataset.id);
+      if(error){ toast("捞回失败"); btn.disabled=false; return; }
+      toast("已捞回 ✓"); renderWarehouse();
+    };
+  });
+}
+
 /* ---------------- 详情页 ---------------- */
 const GROUP_ORDER = ["概览","场馆","酒店"];
 async function renderDetail(id){
@@ -274,10 +314,10 @@ async function renderDetail(id){
   const [{data:v},{data:photos},{data:hotels},{data:events},{data:logs},{data:extras},{data:acts}] = await Promise.all([
     sb.from("venues").select("*").eq("id",id).single(),
     sb.from("venue_photos").select("*").eq("venue_id",id).order("sort_order"),
-    sb.from("venue_hotels").select("*").eq("venue_id",id).order("sort_order"),
+    sb.from("venue_hotels").select("*").eq("venue_id",id).is("archived_at",null).order("sort_order"),
     sb.from("venue_events").select("*").eq("venue_id",id).order("sort_order"),
     sb.from("survey_logs").select("*").eq("venue_id",id).order("created_at",{ascending:false}),
-    sb.from("extra_photos").select("*").eq("venue_id",id).order("created_at"),
+    sb.from("extra_photos").select("*").eq("venue_id",id).is("archived_at",null).order("created_at"),
     sb.from("activity_log").select("*").eq("venue_id",id).order("created_at",{ascending:false}).limit(40),
   ]);
   if(!v){ app.innerHTML=`<div class="loading">场馆不存在</div>`; return; }
@@ -535,9 +575,9 @@ async function renderDetail(id){
   });
   app.querySelectorAll(".hdel").forEach(btn=>{
     btn.onclick=async(e)=>{ e.stopPropagation(); const h=(hotels||[]).find(x=>x.id===btn.dataset.hid); if(!h) return;
-      if(!confirm(`删除酒店「${h.name||""}」？`)) return;
-      await sb.from("venue_hotels").delete().eq("id",h.id);
-      await logAct(id,"删除酒店",h.name); toast("已删除"); maybeThank(); renderDetail(id); };
+      if(!confirm(`把酒店「${h.name||""}」收进仓库？（连同照片暂时收起，需要时能从仓库捞回来，不会真删）`)) return;
+      await sb.from("venue_hotels").update({archived_at:new Date().toISOString()}).eq("id",h.id);
+      await logAct(id,"收进仓库·酒店",h.name); toast("已收进仓库 📦"); maybeThank(); renderDetail(id); };
   });
   // 补充照片
   app.querySelectorAll(".slot[data-eid]").forEach(el=>{
@@ -689,7 +729,7 @@ function hotelModuleHTML(h, photos, vid){
   const hp=(photos||[]).filter(p=>p.hotel_id===h.id);
   const main=HMAIN.map(k=>hp.find(p=>p.slot_key===k)).filter(Boolean);
   return `<div class="module module-hotel">
-    ${canEdit()?`<div class="hbar"><span class="hbar-tag">🏨 酒店</span><span class="hacts"><button class="hedit" data-hid="${h.id}">✏️ 改信息</button><button class="hmig" data-hid="${h.id}">🔀 迁移</button><button class="hdel del" data-hid="${h.id}">🗑 删</button></span></div>`:""}
+    ${canEdit()?`<div class="hbar"><span class="hbar-tag">🏨 酒店</span><span class="hacts"><button class="hedit" data-hid="${h.id}">✏️ 改信息</button><button class="hmig" data-hid="${h.id}">🔀 迁移</button><button class="hdel del" data-hid="${h.id}">📦 收仓库</button></span></div>`:""}
     <div class="mh-head">
       <div class="hn">${canEdit()?"":"🏨 "}${esc(h.name||"")}</div>
     </div>
@@ -909,7 +949,7 @@ async function openAddHotel(venueId){
   setHmMode("new");
   // 填充可复制酒店下拉（跨场馆，显示 项目-酒店名）
   const [{data:hs},{data:vs}]=await Promise.all([
-    sb.from("venue_hotels").select("id,name,venue_id").order("sort_order"),
+    sb.from("venue_hotels").select("id,name,venue_id").is("archived_at",null).order("sort_order"),
     sb.from("venues").select("id,category,c_code")]);
   const vmap={}; (vs||[]).forEach(v=>vmap[v.id]=(v.c_code?v.c_code+" ":"")+(v.category||""));
   const sel=document.getElementById("hm-copysrc");
@@ -1217,7 +1257,7 @@ function openLightbox(ctx){
   if(canEdit()){
     html+=`<button id="lb-note">${note?"编辑备注":"加备注"}</button>`;
     html+=`<button id="lb-replace">替换这张</button>`;
-    if(ctx.kind==="extra") html+=`<button id="lb-del" class="danger">删除</button>`;
+    if(ctx.kind==="extra") html+=`<button id="lb-del" class="danger">📦 收进仓库</button>`;
   }
   if(r.is_mcd) html+=`<button id="lb-mcd" class="mcd">🔊 麦门 BGM</button>`;
   lbActs.innerHTML=html;
@@ -1292,16 +1332,41 @@ function replaceExtra(e, venueId){
   input.click();
 }
 async function deleteExtra(){
-  if(!confirm("删除这张补充照片？")) return;
+  if(!confirm("把这张照片收进仓库？（不会真删，需要时能从仓库捞回来）")) return;
   const e=lbCtx.rec;
-  await sb.storage.from(BUCKET).remove([e.storage_path]).catch(()=>{});
-  const {error}=await sb.from("extra_photos").delete().eq("id",e.id);
-  if(error){ toast("删除失败"); return; }
-  await logAct(lbCtx.venueId, "删除补充照片", "补充照片");
-  lb.classList.remove("on"); toast("已删除"); maybeThank(); renderDetail(lbCtx.venueId);
+  const {error}=await sb.from("extra_photos").update({archived_at:new Date().toISOString()}).eq("id",e.id);
+  if(error){ toast("操作失败"); return; }
+  await logAct(lbCtx.venueId, "收进仓库·补充照片", "补充照片");
+  lb.classList.remove("on"); toast("已收进仓库 📦"); maybeThank(); renderDetail(lbCtx.venueId);
 }
 document.getElementById("lb-close").onclick=()=>{ stopJingle(); lb.classList.remove("on"); };
 lb.addEventListener("click",e=>{ if(e.target===lb){ stopJingle(); lb.classList.remove("on"); } });
+
+/* ---------------- 登录页轮播小贴士 ---------------- */
+const GATE_TIPS=[
+  ["📦","暂时不要的酒店或照片，可以先「收进仓库」，需要时还能再捞出来"],
+  ["🔀","酒店信息能整体打包迁移——组委会换了分配，一键搬到别的场馆"],
+  ["📋","加酒店时把信息整段粘进去，点一下自动分好类，不用一格一格敲"],
+  ["📸","现场点坑位即拍即传；放不下的照片都收进「补充照片」"],
+  ["✍️","每个场馆能写「进度备注」，还差什么写一句，方便交接"],
+  ["🗺","酒店和场馆都在地图上；绿=LIVE 橙=ENG，一眼看清"],
+  ["🐙","TAKO 是大家一起踏勘的资料库——你填的每一条，队友都用得上"],
+];
+function startGateTips(){
+  const el=document.getElementById("gate-tips"); if(!el) return;
+  let i=0;
+  const show=()=>{
+    const [ico,txt]=GATE_TIPS[i%GATE_TIPS.length];
+    el.innerHTML=`<span class="gt-ico">${ico}</span>${txt}`;
+    el.classList.add("show");
+  };
+  show();
+  setInterval(()=>{
+    el.classList.remove("show");
+    setTimeout(()=>{ i++; show(); }, 520);
+  }, 4800);
+}
+startGateTips();
 
 /* ---------------- 启动 ---------------- */
 route();

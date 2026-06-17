@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=28";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=29";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -30,8 +30,8 @@ function enterApp(){ gate.style.display="none"; applyRoleBadge(); route(); }
 function tryUnlock(){
   const pw = document.getElementById("gate-pw").value.trim();
   let role=null;
-  if(/^[1-9]$/.test(pw) || pw === EDIT_PASSWORD) role="editor";   // 1-9 任意数字 = 编辑者（不分彼此）
-  else if(pw === VIEW_PASSWORD) role="viewer";                     // 只读 = tako2026
+  if(pw === EDIT_PASSWORD) role="editor";          // 编辑 = 567（自己人）
+  else if(pw === VIEW_PASSWORD) role="viewer";     // 只读 = tako2026（对外）
   if(!role){ document.getElementById("gate-err").textContent="密码不对，再试一次"; return; }
   sessionStorage.setItem("tako_role",role);
   enterApp();

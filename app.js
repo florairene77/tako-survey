@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=30";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=32";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -15,6 +15,7 @@ if(window.L){
 const app = document.getElementById("app");
 const backbtn = document.getElementById("backbtn");
 let SNOTES=[], CURV=null;   // 我的笔记缓存 / 当前场馆
+let _freshNav=false;        // 首次从首页/路由进入场馆=回顶部；编辑后重渲染=保留滚动位置(D1)
 
 /* ---------------- 登录 ---------------- */
 const gate = document.getElementById("gate");
@@ -88,13 +89,32 @@ async function compress(file){
   return await new Promise(res=>c.toBlob(res,"image/jpeg",0.82));
 }
 
+/* ---------------- 拍照后存到手机相册（D2，网页折中：弹分享面板）---------------- */
+// iOS 相机拍的文件名通常是 image.jpg；相册选的是 IMG_xxxx。据此判断"刚拍的"
+function looksLikeCapture(f){ return f && /^image\.(jpe?g|png|heic|heif)$/i.test(f.name||""); }
+let _albumFile=null, _albumT=null;
+function offerSaveToAlbum(file){
+  if(!file || !looksLikeCapture(file)) return;                       // 只对"刚拍的"弹
+  if(!(navigator.canShare && navigator.canShare({files:[file]}))) return;  // 浏览器不支持就算了
+  _albumFile=file;
+  let btn=document.getElementById("savealbum");
+  if(!btn){
+    btn=document.createElement("button"); btn.id="savealbum"; btn.className="savealbum";
+    document.body.appendChild(btn);
+    btn.onclick=async()=>{ try{ await navigator.share({files:[_albumFile]}); }catch(e){} btn.classList.remove("on"); };
+  }
+  btn.textContent="📥 把刚拍的存到相册";
+  btn.classList.add("on");
+  clearTimeout(_albumT); _albumT=setTimeout(()=>btn.classList.remove("on"), 7000);
+}
+
 /* ---------------- 路由 ---------------- */
 window.addEventListener("hashchange", route);
 backbtn.onclick = ()=> location.hash = "#/";
 function route(){
   if(!unlocked()){ gate.style.display="flex"; return; }
   const m = location.hash.match(/#\/venue\/([\w-]+)/);
-  if(m){ backbtn.style.display="block"; renderDetail(m[1]); }
+  if(m){ backbtn.style.display="block"; _freshNav=true; renderDetail(m[1]); }
   else if(location.hash.startsWith("#/transport")){ backbtn.style.display="block"; renderTransport(); }
   else if(location.hash.startsWith("#/warehouse")){ backbtn.style.display="block"; renderWarehouse(); }
   else { backbtn.style.display="none"; renderHome(); }
@@ -105,8 +125,8 @@ function route(){
 const CAT_ALL = "全部";
 const TTCOLOR = { LIVE:"#7bab95", ENG:"#e08a5d", BOTH:"#8a7bb0" };
 function ttLabel(t){ return t==="ENG"?"ENG":t==="BOTH"?"LIVE+ENG":"LIVE"; }
-const VIEWER_MIN_FILLED = 10;   // 只读用户：踏勘完成 或 至少填了这么多坑位才可见
-function viewerCanSee(filled, surveyDone){ return surveyDone || filled>=VIEWER_MIN_FILLED; }
+const VIEWER_MIN_FILLED = 8;   // 只读用户：填够这么多坑位就自动对外可见（不再由踏勘完成控制）
+function viewerCanSee(filled, surveyDone){ return filled>=VIEWER_MIN_FILLED; }
 let homeMap;
 async function renderHome(){
   app.innerHTML = `<div class="loading">加载场馆…</div>`;
@@ -115,7 +135,11 @@ async function renderHome(){
     .order("sort_order");
   if(error){ app.innerHTML=`<div class="loading">读取失败：${esc(error.message)}</div>`; return; }
 
-  // 只读用户：只看到已踏勘完成 / 大部分填好的场馆，未踏勘的隐藏
+  // 按 C 码数字升序排（C07→7、C13→13），无 C 码的排最后；纯前端排序，不改库里 sort_order
+  const cnum = c => { const m=/(\d+)/.exec(c||""); return m? +m[1] : 9999; };
+  (rawVenues||[]).sort((a,b)=> cnum(a.c_code)-cnum(b.c_code) || ((a.sort_order||0)-(b.sort_order||0)));
+
+  // 只读用户：只看到大部分填好的场馆，未踏勘的隐藏
   const venues = canEdit() ? rawVenues : rawVenues.filter(v=>{
     const filled=(v.venue_photos||[]).filter(p=>p.storage_path).length;
     return viewerCanSee(filled, v.survey_done);
@@ -331,6 +355,7 @@ async function renderWarehouse(){
 /* ---------------- 详情页 ---------------- */
 const GROUP_ORDER = ["概览","场馆","酒店"];
 async function renderDetail(id){
+  const _startY = _freshNav ? 0 : window.scrollY; _freshNav=false;   // D1：编辑后重渲染保留位置
   app.innerHTML = `<div class="loading">加载场馆资料…</div>`;
   const [{data:v},{data:photos},{data:hotels},{data:events},{data:logs},{data:extras},{data:acts}] = await Promise.all([
     sb.from("venues").select("*").eq("id",id).single(),
@@ -385,30 +410,26 @@ async function renderDetail(id){
       </div>
     </div>
 
-    <div class="section">
-      <h3><span class="dot"></span>基本信息${canEdit()?`<button class="sec-edit" id="venue-edit">编辑</button>`:""}</h3>
-      <div class="hotel" style="margin-top:0">
+    ${(()=>{ const ov=(photos||[]).filter(p=>p.slot_group==='概览'&&!p.hotel_id);
+      const hasGeo=(v.lat&&v.lng) || (hotels||[]).some(h=>h.lat&&h.lng);
+      return (ov.length||canEdit()||hasGeo)?`<div class="section">
+      <h3><span class="dot"></span>概览<span class="count">全队总览 · 点开放大</span></h3>
+      ${hasGeo?`<div class="hint-line">📍 本场馆 + 酒店位置（红=场馆 蓝=酒店）</div><div id="ovmap" class="detmap"></div>`:(canEdit()?`<div class="hint-line muted">📍 位置地图：本馆/酒店还没有坐标，补全地址坐标后自动显示</div>`:"")}
+      <div class="hint-line" style="margin-top:10px">住宿信息表 / 餐饮信息统计表（全队的大表放这里）</div>
+      <div class="slots docs">${ov.map(p=>docSlotHTML(p,false)).join("")}</div>
+      ${myNoteHTML('overview',null)}
+    </div>`:""; })()}
+
+    <div class="section module module-venue">
+      <h3><span class="dot venue"></span>🏟 场馆<span class="count">${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id&&p.storage_path).length}/${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id).length} 已填</span>${canEdit()?`<button class="sec-edit" id="venue-edit">编辑信息</button>`:""}</h3>
+      <div class="hotel" style="margin-top:0;margin-bottom:10px">
         <div class="hmeta"><span class="lab">场馆</span><span>${esc(v.venue_name_jp||"")}</span></div>
         <div class="hmeta"><span class="lab">地址</span><span>${esc(v.venue_address||"—")}</span></div>
         <div class="hmeta"><span class="lab">最近交通</span><span>${esc(v.nearest_transit||"—")}</span></div>
         <div class="hmeta"><span class="lab">停车</span><span>${esc(v.parking_note||"—")}</span></div>
       </div>
-      <div id="detmap" class="detmap" style="margin-top:12px"></div>
-      ${v.venue_intro?`<div class="intro-box" style="margin-top:10px">${esc(fmtIntro(v.venue_intro))}</div>`:""}
-    </div>
-
-    ${(()=>{ const ov=(photos||[]).filter(p=>p.slot_group==='概览'&&!p.hotel_id);
-      return (ov.length||canEdit())?`<div class="section">
-      <h3><span class="dot"></span>概览<span class="count">全队总览 · 点开放大</span></h3>
-      <div class="hint-line">谷歌总路线图 / 住宿信息表 / 餐饮信息统计表（全队的大表放这里）</div>
-      <div class="slots docs">${ov.map(docSlotHTML).join("")}
-        ${canEdit()?addSlotBtnHTML(id,null,'overview'):""}</div>
-      ${myNoteHTML('overview',null)}
-    </div>`:""; })()}
-
-    <div class="section module module-venue">
-      <h3><span class="dot venue"></span>🏟 场馆<span class="count">${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id&&p.storage_path).length}/${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id).length} 已填</span></h3>
-      <div class="slots">${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id).map(slotHTML).join("")}</div>
+      ${v.venue_intro?`<div class="intro-box" style="margin-bottom:10px">${esc(fmtIntro(v.venue_intro))}</div>`:""}
+      <div class="slots">${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id).map(slotHTML).join("")}${(()=>{ const base=(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id&&/场馆周边/.test(p.slot_label||"")).length; return (extras||[]).map((e,i)=>extraHTML(e, base+1+i)).join(""); })()}${canEdit()?`<div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}</div>
       ${tipsCardHTML(v.public_tips, `tips-venue`)}
       ${canEdit()?internalCardHTML(v.internal_note, `int-venue`):""}
       ${myNoteHTML('venue',null)}
@@ -420,27 +441,6 @@ async function renderDetail(id){
     </div>
 
     ${canEdit()?`<div class="section">
-      <h3><span class="dot"></span>补充照片 · 踏勘进度<span class="count">仅编辑可见 · ${filled}/${total} 坑位</span></h3>
-      <div class="slotgroup-title">补充照片（随手拍 · 不限数量）</div>
-      <div class="slots" id="extra-slots">
-        ${(extras||[]).map(extraHTML).join("")}
-        <div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>
-      </div>
-      <div class="progress-wrap">
-        <div class="ptitle">📋 踏勘进度 · ${filled}/${total} 个坑位已填（自动统计）</div>
-        <div class="pbar${(total&&filled>=total)?' full':''}"><i data-pct="${pct}"></i></div>
-        <div class="prog-note">
-          <div class="prog-note-lab">✍️ 进度备注（自己写，比如还差什么）</div>
-          <textarea id="prog-txt" autocomplete="off" placeholder="例：还差住宿表和2张周边图；早餐价格待确认…">${esc(v.survey_progress||"")}</textarea>
-          <div class="prog-note-row"><button class="btn-sm" id="prog-save">保存进度备注</button></div>
-        </div>
-        <div class="done-row">${v.survey_done
-          ? `<span class="done-badge">✓ 踏勘已完成</span>`
-          : `<button class="done-btn" id="survey-done">踏勘完成</button>`}</div>
-      </div>
-    </div>`:""}
-
-    ${canEdit()?`<div class="section">
       <h3><span class="dot"></span>踏勘说明<span class="count">仅编辑可见 · ${logs?.length||0} 条</span></h3>
       <div id="logs">${(logs&&logs.length)? logs.map(logHTML).join("") : `<div class="muted-empty">还没有记录，第一条由你来写 👇</div>`}</div>
       <div class="logform">
@@ -449,40 +449,33 @@ async function renderDetail(id){
       </div>
     </div>`:""}
 
-    ${canEdit()?`<details class="section actlog">
-      <summary><span class="dot"></span>编辑记录<span class="count">仅编辑可见 · ${acts?.length||0} 条 · 点击展开</span></summary>
-      <div class="actlist">
-        ${(acts&&acts.length)? acts.map(actHTML).join("") : `<div class="muted-empty">还没有编辑记录</div>`}
-      </div>
-    </details>`:""}
     ${canEdit()?`<div class="section exportbox">
       <button class="btn export-pack" id="export-pack">📦 导出图片包（${esc(v.c_code||"")} ${esc(v.category||"")}）</button>
       <div class="hint-line" style="text-align:center;margin-top:8px">把本场馆所有照片按名字打包成 zip 下载（手册版 PPTX 请跟管理员说一声）</div>
     </div>`:""}
+    ${canEdit()?`<div class="done-row done-foot">${v.survey_done
+      ? `<span class="done-badge">✓ 踏勘已完成</span>`
+      : `<button class="done-btn" id="survey-done">踏勘完成</button>`}</div>`:""}
     <div class="foot">${esc(v.c_code)} · 资料随踏勘持续更新</div>`;
 
-  // 地图
-  setTimeout(()=>{
-    const m=L.map("detmap",{scrollWheelZoom:false,zoomControl:false}).setView([v.lat||35.18,v.lng||136.91],14);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18}).addTo(m);
-    if(v.lat&&v.lng) L.marker([v.lat,v.lng]).addTo(m).bindPopup("场馆："+esc(v.venue_name_jp||""));
-    (hotels||[]).forEach(h=>{ if(h.lat&&h.lng) L.marker([h.lat,h.lng]).addTo(m).bindPopup("酒店："+esc(h.name||"")); });
-    const pts=[[v.lat,v.lng],...(hotels||[]).filter(h=>h.lat&&h.lng).map(h=>[h.lat,h.lng])].filter(p=>p[0]&&p[1]);
-    if(pts.length>1) m.fitBounds(pts,{padding:[30,30]});
-    setTimeout(()=>m.invalidateSize(),250);
-  },60);
+  // 概览坐标地图（本馆+它的酒店；有坐标才渲染）
+  if(app.querySelector("#ovmap")){
+    setTimeout(()=>{
+      const center=[v.lat||35.18, v.lng||136.91];
+      const m=L.map("ovmap",{scrollWheelZoom:false,zoomControl:false}).setView(center,13);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18}).addTo(m);
+      const red=L.divIcon({className:"",html:`<div style="width:16px;height:16px;border-radius:50%;background:#d9534f;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,iconSize:[16,16],iconAnchor:[8,8]});
+      const blue=L.divIcon({className:"",html:`<div style="width:16px;height:16px;border-radius:50%;background:#4a73c4;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,iconSize:[16,16],iconAnchor:[8,8]});
+      const pts=[];
+      if(v.lat&&v.lng){ L.marker([v.lat,v.lng],{icon:red}).addTo(m).bindPopup("🏟 场馆："+esc(v.venue_name_jp||v.category||"")); pts.push([v.lat,v.lng]); }
+      (hotels||[]).forEach(h=>{ if(h.lat&&h.lng){ L.marker([h.lat,h.lng],{icon:blue}).addTo(m).bindPopup("🏨 酒店："+esc(h.name||"")); pts.push([h.lat,h.lng]); } });
+      if(pts.length>1) m.fitBounds(pts,{padding:[34,34],maxZoom:15});
+      else if(pts.length===1) m.setView(pts[0],14);
+      setTimeout(()=>m.invalidateSize(),250);
+    },60);
+  }
 
-  // 进度条加载动画
-  setTimeout(()=>{ const bar=app.querySelector(".pbar i"); if(bar) bar.style.width=(bar.dataset.pct||0)+"%"; },120);
-  // 进度备注（编辑自己写）
-  const progSave=app.querySelector("#prog-save");
-  if(progSave) progSave.onclick=async()=>{
-    const txt=app.querySelector("#prog-txt").value.trim();
-    const {error}=await sb.from("venues").update({survey_progress:txt||null}).eq("id",id);
-    if(error){ toast("保存失败"); return; }
-    await logAct(id,"更新进度备注",null); toast("进度已保存 ✓"); maybeThank();
-  };
-  // 踏勘完成
+  // 踏勘完成（底部小按钮：标记完成 + 出小章鱼；不再控制对外可见）
   const doneBtn=app.querySelector("#survey-done");
   if(doneBtn) doneBtn.onclick=async()=>{
     if(!confirm("确认这个场馆踏勘完成了吗？")) return;
@@ -600,6 +593,15 @@ async function renderDetail(id){
       await sb.from("venue_hotels").update({archived_at:new Date().toISOString()}).eq("id",h.id);
       await logAct(id,"收进仓库·酒店",h.name); toast("已收进仓库 📦"); maybeThank(); renderDetail(id); };
   });
+  // 「酒店到场馆路线」空坑：点一下建坑位，再点它上传路线图
+  app.querySelectorAll(".addroute").forEach(el=>{
+    el.onclick=async()=>{
+      const hid=el.dataset.hid;
+      const {error}=await sb.from("venue_photos").insert({venue_id:id,hotel_id:hid,slot_key:"hotel_route",slot_group:"酒店",slot_label:"酒店到场馆路线",slot_type:"paste",storage_path:null,sort_order:9});
+      if(error){ toast("添加失败"); return; }
+      await logAct(id,"添加酒店路线坑位",null); toast("坑位已建，点它上传路线图"); renderDetail(id);
+    };
+  });
   // 补充照片
   app.querySelectorAll(".slot[data-eid]").forEach(el=>{
     const get=()=>(extras||[]).find(x=>x.id===el.dataset.eid);
@@ -629,6 +631,9 @@ async function renderDetail(id){
   // 导出图片包（浏览器内打包,免费自助）
   const expBtn=app.querySelector("#export-pack");
   if(expBtn) expBtn.onclick=()=>exportImagePack(v, hotels||[], photos||[], extras||[], expBtn);
+
+  // D1：编辑后重渲染，滚回刚才的位置（首次进入 _startY=0 回顶部）
+  if(_startY){ requestAnimationFrame(()=>window.scrollTo(0,_startY)); setTimeout(()=>window.scrollTo(0,_startY),160); }
 }
 
 // 文件名安全化
@@ -676,11 +681,11 @@ function fmtPeriod(v){
 }
 function slotHTML(p){
   if(p.storage_path){
-    const note=(canEdit()||p.note_public!==false) ? (p.note||"").trim() : "";
+    let note=(canEdit()||p.note_public!==false) ? (p.note||"").trim() : "";
+    if(note===(p.slot_label||"").trim()) note="";   // 备注与标题相同就不重复显示(C2)
     const strip = note ? `<span class="cap note">${esc(note)}</span>` : (p.caption?`<span class="cap">${esc(p.caption)}</span>`:"");
     return `<div class="slot filled${note?" hasnote":""}" data-pid="${p.id}"${note?` title="${esc(note)}"`:""}>
       <img loading="lazy" src="${pubUrl(p.storage_path,p.updated_at)}" alt="${esc(p.slot_label)}">
-      ${note?`<div class="notebadge">★</div>`:""}
       <div class="caption"><span class="lab">${esc(p.slot_label)}</span>${strip}</div>
     </div>`;
   }
@@ -694,24 +699,29 @@ function slotHTML(p){
     <div class="hint">${p.slot_type==="paste"?"点击选图":"点击拍照"}${p.caption?` · ${esc(p.caption)}`:""}</div>
   </div>`;
 }
-function extraHTML(e){
-  const note=(canEdit()||e.note_public!==false) ? (e.note||e.caption||"").trim() : ""; // 只读看私密备注=隐藏
+// 圈数字 ①..⑳，超出用普通数字
+function circled(n){ const C="①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"; return (n>=1&&n<=20)?C[n-1]:String(n); }
+function extraHTML(e, num){
+  let note=(canEdit()||e.note_public!==false) ? (e.note||e.caption||"").trim() : ""; // 只读看私密备注=隐藏
+  const label="场馆周边"+circled(num);                 // 标题=场馆周边+序号(接固定坑①②③往后排)
+  if(note===label || note==="补充照片") note="";        // 与标题相同/默认占位就不重复
+  const strip = note ? `<span class="cap note">${esc(note)}</span>` : "";  // 描述=金色
   return `<div class="slot filled${note?" hasnote":""}" data-eid="${e.id}"${note?` title="${esc(note)}"`:""}>
-    <img loading="lazy" src="${pubUrl(e.storage_path,e.created_at)}" alt="补充照片">
-    ${note?`<div class="notebadge">★</div>`:""}
-    <div class="caption"><span class="lab">补充照片</span>${note?`<span class="cap note">${esc(note)}</span>`:""}</div>
+    <img loading="lazy" src="${pubUrl(e.storage_path,e.created_at)}" alt="${esc(label)}">
+    <div class="caption"><span class="lab">${esc(label)}</span>${strip}</div>
   </div>`;
 }
-function docSlotHTML(p){
-  const ren = canEdit()?`<button class="docrename" data-pid="${p.id}">✏️改名</button>`:"";
+function docSlotHTML(p, showRename=true){
+  const ren = (canEdit()&&showRename)?`<button class="docrename" data-pid="${p.id}">✏️改名</button>`:"";
   if(p.storage_path){
-    const note=(p.note||"").trim();
+    let note=(p.note||"").trim();
+    if(note===(p.slot_label||"").trim()) note="";   // 与标题相同不重复(C2)
     const sub = note ? note : (p.caption||"");
     return `<div class="docslot${note?" hasnote":""}" data-pid="${p.id}"${note?` title="${esc(note)}"`:""}>
       ${ren}
       <img loading="lazy" src="${pubUrl(p.storage_path,p.updated_at)}" alt="${esc(p.slot_label)}">
       <span class="dzoom">🔍 点开放大</span>
-      <div class="dlabel">${note?`<span class="star">★</span>`:""}${esc(p.slot_label)}${sub?` · ${esc(sub)}`:""}</div>
+      <div class="dlabel">${esc(p.slot_label)}${sub?` · ${esc(sub)}`:""}</div>
     </div>`;
   }
   if(!canEdit()) return `<div class="docslot empty"><div class="ico">🖼️</div><div class="lab">${esc(p.slot_label)} · 暂无</div></div>`;
@@ -758,10 +768,13 @@ function hotelModuleHTML(h, photos, vid){
     <div class="hmeta"><span class="lab">房型</span><span>${esc(h.room_type||"—")}</span></div>
     <div class="hmeta"><span class="lab">最近交通</span><span>${esc(h.nearest_transit||"—")}</span></div>
     ${h.url?`<div class="hmeta"><span class="lab">官网</span><a href="${esc(h.url)}" target="_blank" rel="noopener" style="color:var(--accent)">打开官网 ↗</a></div>`:""}
+    ${(()=>{ const rp=hp.find(p=>p.slot_key==='hotel_route');
+      if(rp) return `<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线</div><div class="slots docs">${docSlotHTML(rp,false)}</div></div>`;
+      return canEdit()?`<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线</div><div class="slots docs"><div class="docslot empty addroute" data-hid="${h.id}"><div class="ico">🖼️</div><div class="lab">酒店到场馆路线 · 点击上传</div></div></div></div>`:""; })()}
     ${main.length?`<div class="slots" style="margin-top:10px">${main.map(slotHTML).join("")}</div>`:""}
-    ${(()=>{ const ex=hp.filter(p=>!HMAIN.includes(p.slot_key));
+    ${(()=>{ const ex=hp.filter(p=>!HMAIN.includes(p.slot_key)&&p.slot_key!=='hotel_route');
       return (ex.length||canEdit())?`<div class="subcat"><div class="subcat-t">📎 补充资料（路线/餐饮/住宿等 · 照片+备注）</div>
-        <div class="slots docs">${ex.map(docSlotHTML).join("")}${canEdit()?addSlotBtnHTML(vid,h.id,'more','＋添加'):""}</div></div>`:""; })()}
+        <div class="slots docs">${ex.map(p=>docSlotHTML(p,true)).join("")}${canEdit()?addSlotBtnHTML(vid,h.id,'more','＋添加'):""}</div></div>`:""; })()}
     ${h.hotel_intro?`<div class="intro">${esc(fmtIntro(h.hotel_intro))}</div>`:""}
     ${tipsCardHTML(h.public_tips, `tips-h-${h.id}`)}
     ${canEdit()?internalCardHTML(h.internal_note, `int-h-${h.id}`):""}
@@ -789,14 +802,14 @@ async function doSlotUpload(file, p, el){
     const path=p.storage_path || `${p.venue_id}/${p.hotel_id?(p.hotel_id.slice(0,8)+"_"):""}${p.slot_key}_${Math.random().toString(36).slice(2,6)}.jpg`;
     const {error:upErr}=await sb.storage.from(BUCKET).upload(path,blob,{upsert:true,contentType:"image/jpeg"});
     if(upErr) throw upErr;
-    const nm=(prompt("给这张照片起个名字（导出图片时的文件名，可留空）：", (p.note||p.slot_label||"").trim())||"").trim();
+    const nm=(prompt("给这张照片补充说明（如：距离酒店步行1分钟；留空就用坑位标题）：", (p.note||"").trim())||"").trim();
     const upd={storage_path:path,uploaded_by:whoami(),updated_at:new Date().toISOString()};
     if(nm) upd.note=nm;
     const {error:dbErr}=await sb.from("venue_photos").update(upd).eq("id",p.id);
     if(dbErr) throw dbErr;
     await logAct(p.venue_id, wasReplace?"替换照片":"上传照片", nm||p.slot_label);
     toast(wasReplace?"已替换 ✓":"上传成功 ✓");
-    maybeThank(); renderDetail(p.venue_id);
+    offerSaveToAlbum(file); maybeThank(); renderDetail(p.venue_id);
   }catch(e){ console.error(e); toast("上传失败："+(e.message||e)); el.classList.remove("uploading"); }
 }
 function pickAndUpload(p, el){
@@ -824,11 +837,10 @@ async function doExtraUpload(file, venueId, el){
       const {error:upErr}=await sb.storage.from(BUCKET).upload(key,blob,{upsert:true,contentType:"image/jpeg"});
       if(upErr) throw upErr;
       const note=(prompt("给这张照片起个名字（导出图片时的文件名，可留空）：")||"").trim();
-      let pub=true; if(note){ pub=confirm("这个名字/备注要让「只读密码」的人也看到吗？\n确定=公开　取消=仅编辑可见"); }
-      const {error:dbErr}=await sb.from("extra_photos").insert({venue_id:venueId,storage_path:key,note:note||null,note_public:pub,uploaded_by:whoami()});
+      const {error:dbErr}=await sb.from("extra_photos").insert({venue_id:venueId,storage_path:key,note:note||null,note_public:true,uploaded_by:whoami()});
       if(dbErr) throw dbErr;
-      await logAct(venueId, "添加补充照片", note||"补充照片");
-      toast("已添加 ✓"); maybeThank(); renderDetail(venueId);
+      await logAct(venueId, "添加照片", note||"照片");
+      toast("已添加 ✓"); offerSaveToAlbum(file); maybeThank(); renderDetail(venueId);
     }catch(e){ console.error(e); toast("上传失败："+(e.message||e)); el.classList.remove("uploading"); }
   }
 }
@@ -860,7 +872,8 @@ const notem=document.getElementById("notem");
 let noteCtx=null;
 function openNote(ctx){
   noteCtx=ctx;
-  const note=(canEdit()||ctx.rec.note_public!==false) ? noteOf(ctx).trim() : "";
+  let note=(canEdit()||ctx.rec.note_public!==false) ? noteOf(ctx).trim() : "";
+  if(ctx.kind==="slot" && note===(ctx.rec.slot_label||"").trim()) note="";  // 与标题相同视作未填(C2)
   const editing=canEdit();
   const ta=document.getElementById("notem-text");
   const view=document.getElementById("notem-view");
@@ -876,12 +889,11 @@ async function saveNote(){
   if(!noteCtx) return;
   const val=document.getElementById("notem-text").value.trim();
   const table=noteCtx.kind==="slot"?"venue_photos":"extra_photos";
-  let pub=true;
-  if(val){ pub=confirm("这条备注要让「只读密码」的人也看到吗？\n\n确定 = 公开（只读也能看到这条备注和 ★ 提示）\n取消 = 仅编辑可见（只读看不到星标和备注）"); }
-  const {error}=await sb.from(table).update({note:val||null, note_public:pub}).eq("id",noteCtx.rec.id);
+  // 备注一律公开(C3)；要保密写进「内部提示·只读看不到」
+  const {error}=await sb.from(table).update({note:val||null, note_public:true}).eq("id",noteCtx.rec.id);
   if(error){ toast("保存失败"); return; }
-  await logAct(noteCtx.venueId, "编辑备注"+(val?(pub?"(公开)":"(仅编辑)"):""), noteCtx.kind==="slot"?noteCtx.rec.slot_label:"补充照片");
-  notem.classList.remove("on"); toast(val?(pub?"备注已保存（公开）":"备注已保存（仅编辑可见）"):"备注已清空"); maybeThank(); renderDetail(noteCtx.venueId);
+  await logAct(noteCtx.venueId, "编辑备注", noteCtx.kind==="slot"?noteCtx.rec.slot_label:"照片");
+  notem.classList.remove("on"); toast(val?"备注已保存 ✓":"备注已清空"); maybeThank(); renderDetail(noteCtx.venueId);
 }
 document.getElementById("notem-save").onclick=saveNote;
 document.getElementById("notem-cancel").onclick=()=>notem.classList.remove("on");
@@ -1044,7 +1056,7 @@ document.getElementById("hm-save").onclick=async()=>{
       const {error}=await sb.from("venue_hotels").insert(upd);
       if(error){ toast("添加失败"); return; }
       // 新酒店配 6 个标准空坑位
-      const HS=[["hotel_exterior","酒店外观","photo",10],["hotel_map","酒店官网及周边地图","paste",11],["hotel_lobby","酒店大堂","photo",12],["hotel_surround_1","酒店周边①","photo",13],["hotel_surround_2","酒店周边②","photo",14],["hotel_surround_3","酒店周边③","photo",15]];
+      const HS=[["hotel_route","酒店到场馆路线","paste",9],["hotel_exterior","酒店外观","photo",10],["hotel_map","酒店官网及周边地图","paste",11],["hotel_lobby","酒店大堂","photo",12],["hotel_surround_1","酒店周边①","photo",13],["hotel_surround_2","酒店周边②","photo",14],["hotel_surround_3","酒店周边③","photo",15]];
       await sb.from("venue_photos").insert(HS.map(s=>({venue_id:hotelEditing.venueId,hotel_id:newHid,slot_key:s[0],slot_group:"酒店",slot_label:s[1],slot_type:s[2],storage_path:null,sort_order:s[3]})));
       await logAct(hotelEditing.venueId,"添加酒店", upd.name||"酒店");
     }

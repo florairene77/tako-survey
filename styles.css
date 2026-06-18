@@ -224,6 +224,12 @@ a{color:inherit}
 .done-row{margin-top:13px;display:flex;justify-content:center}
 .done-btn{background:var(--sage);color:#fff;border:none;border-radius:12px;padding:11px 30px;font-size:15px;font-weight:600;box-shadow:0 3px 10px rgba(91,144,121,.25)}
 .done-badge{background:var(--sage-soft);color:var(--sage-d);font-size:14px;font-weight:700;padding:10px 22px;border-radius:12px;display:inline-flex;align-items:center;gap:7px}
+/* 底部踏勘完成：小一号、留白 */
+.done-foot{margin:18px 0 6px}
+.done-foot .done-btn{padding:9px 24px;font-size:14px;font-weight:600;opacity:.92}
+/* 拍照后"存到相册"悬浮按钮（D2） */
+.savealbum{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);z-index:1200;background:#3a3a3c;color:#fff;border:none;border-radius:24px;padding:13px 22px;font-size:15px;font-weight:600;box-shadow:0 6px 22px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:.28s}
+.savealbum.on{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
 
 /* 谢谢你弹层 */
 #thankyou{position:fixed;inset:0;z-index:700;display:none;align-items:center;justify-content:center;background:rgba(244,248,245,.6);backdrop-filter:blur(3px);pointer-events:none;opacity:0;transition:opacity .45s ease}

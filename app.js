@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=32";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=33";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -205,7 +205,7 @@ async function renderHome(){
     const pts = list.filter(v=>v.lat&&v.lng);
     setTimeout(()=>{
       if(homeMap){ homeMap.remove(); homeMap=null; }
-      homeMap = L.map("map",{scrollWheelZoom:false}).setView([35.18,136.91],10);
+      homeMap = L.map("map",{scrollWheelZoom:false,zoomControl:false,dragging:false,touchZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false}).setView([35.18,136.91],10);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap",maxZoom:18}).addTo(homeMap);
       const marks=[];
       pts.forEach(v=>{
@@ -462,7 +462,8 @@ async function renderDetail(id){
   if(app.querySelector("#ovmap")){
     setTimeout(()=>{
       const center=[v.lat||35.18, v.lng||136.91];
-      const m=L.map("ovmap",{scrollWheelZoom:false,zoomControl:false}).setView(center,13);
+      // 完全锁死：不缩放/不拖动，防手机上放大缩不回、界面跑偏误触
+      const m=L.map("ovmap",{scrollWheelZoom:false,zoomControl:false,dragging:false,touchZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,tap:false}).setView(center,13);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18}).addTo(m);
       const red=L.divIcon({className:"",html:`<div style="width:16px;height:16px;border-radius:50%;background:#d9534f;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,iconSize:[16,16],iconAnchor:[8,8]});
       const blue=L.divIcon({className:"",html:`<div style="width:16px;height:16px;border-radius:50%;background:#4a73c4;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,iconSize:[16,16],iconAnchor:[8,8]});

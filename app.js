@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=37";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=38";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -422,7 +422,7 @@ async function renderDetail(id){
       </div>
     </div>
 
-    ${(()=>{ const ov=(photos||[]).filter(p=>p.slot_group==='概览'&&!p.hotel_id);
+    ${(()=>{ const ov=(photos||[]).filter(p=>p.slot_group==='概览'&&!p.hotel_id&&(!v.survey_done||p.storage_path));
       const hasGeo=(v.lat&&v.lng) || (hotels||[]).some(h=>h.lat&&h.lng);
       return (ov.length||canEdit()||hasGeo)?`<div class="section">
       <h3><span class="dot"></span>概览<span class="count">全队总览 · 点开放大</span></h3>
@@ -440,7 +440,7 @@ async function renderDetail(id){
         <div class="hmeta"><span class="lab">最近交通</span><span>${esc(v.nearest_transit||"—")}</span></div>
       </div>
       ${v.venue_intro?`<div class="intro-box" style="margin-bottom:10px">${esc(fmtIntro(v.venue_intro))}</div>`:""}
-      <div class="slots">${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id).map(slotHTML).join("")}${(()=>{ const base=(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id&&/场馆周边/.test(p.slot_label||"")).length; return (extras||[]).map((e,i)=>extraHTML(e, base+1+i)).join(""); })()}${canEdit()?`<div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}</div>
+      <div class="slots">${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id&&(!v.survey_done||p.storage_path)).map(slotHTML).join("")}${(()=>{ const base=(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id&&/场馆周边/.test(p.slot_label||"")).length; return (extras||[]).map((e,i)=>extraHTML(e, base+1+i)).join(""); })()}${canEdit()?`<div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}</div>
       ${tipsCardHTML(v.public_tips, `tips-venue`)}
       ${canEdit()?internalCardHTML(v.internal_note, `int-venue`):""}
       ${myNoteHTML('venue',null)}
@@ -448,7 +448,7 @@ async function renderDetail(id){
 
     <div class="section">
       <h3><span class="dot dh"></span>🏨 酒店<span class="count">${hotels?.length||0} 家</span>${canEdit()?`<button class="sec-edit" id="add-hotel">＋添加酒店</button>`:""}</h3>
-      ${(hotels&&hotels.length)? hotels.map(h=>hotelModuleHTML(h, photos, id, hotels)).join("") : `<div class="muted-empty">${canEdit()?"还没有酒店，点「＋添加酒店」录入":"暂无"}</div>`}
+      ${(hotels&&hotels.length)? hotels.map(h=>hotelModuleHTML(h, photos, id, hotels, v.survey_done)).join("") : `<div class="muted-empty">${canEdit()?"还没有酒店，点「＋添加酒店」录入":"暂无"}</div>`}
     </div>
 
     ${canEdit()?`<div class="section">
@@ -809,9 +809,10 @@ function myNoteHTML(key, hid){
 function addSlotBtnHTML(vid, hid, scope, label){
   return `<div class="docslot empty addslot" data-scope="${scope}" data-hid="${hid||""}"><div class="ico">＋</div><div class="lab">${label||"添加一套"}</div></div>`;
 }
-function hotelModuleHTML(h, photos, vid, allHotels){
+function hotelModuleHTML(h, photos, vid, allHotels, done){
   const hp=(photos||[]).filter(p=>p.hotel_id===h.id);
-  const main=HMAIN.map(k=>hp.find(p=>p.slot_key===k)).filter(Boolean);
+  let main=HMAIN.map(k=>hp.find(p=>p.slot_key===k)).filter(Boolean);
+  if(done) main=main.filter(p=>p.storage_path);   // 踏勘完成后，没填的预设坑位不再显示
   const multiHotel=(allHotels||[]).length>1;
   return `<div class="module module-hotel">
     ${canEdit()?`<div class="hbar"><span class="hbar-tag">🏨 酒店</span><span class="hacts"><button class="hedit" data-hid="${h.id}">✏️ 改信息</button><button class="hmig" data-hid="${h.id}">🔀 迁移</button><button class="hdel del" data-hid="${h.id}">📦 收仓库</button></span></div>`:""}
@@ -824,6 +825,7 @@ function hotelModuleHTML(h, photos, vid, allHotels){
     ${h.url?`<div class="hmeta"><span class="lab">官网</span><a href="${esc(h.url)}" target="_blank" rel="noopener" style="color:var(--accent)">打开官网 ↗</a></div>`:""}
     ${(()=>{ const rp=hp.find(p=>p.slot_key==='hotel_route');
       if(rp&&rp.storage_path) return `<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线${canEdit()?`<span class="route-acts">${multiHotel?`<button class="rmig" data-pid="${rp.id}">🔀 换酒店</button>`:""}<button class="rdel" data-pid="${rp.id}">📦 收仓库</button></span>`:""}</div><div class="slots docs">${docSlotHTML(rp,false)}</div></div>`;
+      if(done) return "";   // 踏勘完成后，没传路线图的空坑不再显示
       if(rp) return canEdit()?`<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线</div><div class="slots docs">${docSlotHTML(rp,false)}</div></div>`:"";
       return canEdit()?`<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线</div><div class="slots docs"><div class="docslot empty addroute" data-hid="${h.id}"><div class="ico">🖼️</div><div class="lab">酒店到场馆路线 · 点击上传</div></div></div></div>`:""; })()}
     ${main.length?`<div class="slots" style="margin-top:10px">${main.map(slotHTML).join("")}</div>`:""}

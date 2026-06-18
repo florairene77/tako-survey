@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=33";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=34";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -123,8 +123,8 @@ function route(){
 
 /* ---------------- 首页 ---------------- */
 const CAT_ALL = "全部";
-const TTCOLOR = { LIVE:"#7bab95", ENG:"#e08a5d", BOTH:"#8a7bb0" };
-function ttLabel(t){ return t==="ENG"?"ENG":t==="BOTH"?"LIVE+ENG":"LIVE"; }
+const TTCOLOR = { LIVE:"#7bab95", ENG:"#e08a5d" };
+function ttLabel(t){ return t==="ENG"?"ENG":"LIVE"; }
 const VIEWER_MIN_FILLED = 8;   // 只读用户：填够这么多坑位就自动对外可见（不再由踏勘完成控制）
 function viewerCanSee(filled, surveyDone){ return filled>=VIEWER_MIN_FILLED; }
 let homeMap;
@@ -168,7 +168,6 @@ async function renderHome(){
       <div class="maplegend">
         <span><i style="background:#7bab95"></i>LIVE</span>
         <span><i style="background:#e08a5d"></i>ENG</span>
-        <span><i style="background:#8a7bb0"></i>LIVE+ENG</span>
       </div>
       <div class="filters">${cats.map(c=>`<button class="chip ${c===active?'on':''}" data-c="${esc(c)}">${esc(c)}</button>`).join("")}</div>
       <div class="grid">${canEdit()?`<div class="vcard addcard" id="add-venue-card"><div class="plus">＋</div><div class="lab">添加场馆</div><div class="sub">未踏勘的项目点这里建</div></div>`:""}${list.map(cardHTML).join("")}</div>

@@ -305,7 +305,11 @@ a{color:inherit}
 .module .hacts .hmig{background:#ece9f4;border-color:#cdc7e6;color:#6f6ab0}
 .module .hacts .del{color:#c2604e;border-color:#f0cfc7;background:#fbeeeb}
 .subcat{margin-top:12px}
-.subcat-t{font-size:12px;font-weight:700;color:var(--sage-d);margin:0 0 7px}
+.subcat-t{font-size:12px;font-weight:700;color:var(--sage-d);margin:0 0 7px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.route-acts{display:inline-flex;gap:6px;flex-shrink:0}
+.route-acts button{font-size:11px;font-weight:600;padding:3px 9px;border-radius:8px;border:1px solid var(--sage);background:var(--sage-soft);color:var(--sage-d);white-space:nowrap}
+.route-acts .rmig{background:#ece9f4;border-color:#cdc7e6;color:#6f6ab0}
+.route-acts .rdel{background:#fbeeeb;border-color:#f0cfc7;color:#c2604e}
 /* 公开 TIPs 卡片（金色，场馆经理可见） */
 .tips-card{background:#fffbe9;border:1px solid #f2e3a8;border-radius:13px;padding:12px 14px;margin-top:12px}
 .tips-hd{font-size:13px;font-weight:700;color:#b8860b;display:flex;align-items:center;gap:6px;margin-bottom:7px}

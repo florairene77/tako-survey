@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=35";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=36";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -297,15 +297,18 @@ function openDriverEdit(d){
 async function renderWarehouse(){
   if(!canEdit()){ location.hash="#/"; return; }
   app.innerHTML=`<div class="loading">加载仓库…</div>`;
-  const [{data:hotels},{data:exphotos},{data:vs}]=await Promise.all([
+  const [{data:hotels},{data:exphotos},{data:vphotos},{data:vs}]=await Promise.all([
     sb.from("venue_hotels").select("*").not("archived_at","is",null).order("archived_at",{ascending:false}),
     sb.from("extra_photos").select("*").not("archived_at","is",null).order("archived_at",{ascending:false}),
+    sb.from("venue_photos").select("*").not("archived_at","is",null).order("archived_at",{ascending:false}),
     sb.from("venues").select("id,c_code,category"),
   ]);
   const vsorted=(vs||[]).slice().sort((a,b)=>((a.c_code||"zz")+"").localeCompare((b.c_code||"zz")+""));
   const vmap={}; vsorted.forEach(v=>vmap[v.id]=((v.c_code?v.c_code+" ":"")+(v.category||"")).trim()||"未命名场馆");
   const vopts=(sel)=>vsorted.map(v=>`<option value="${v.id}"${v.id===sel?" selected":""}>${esc(vmap[v.id])}</option>`).join("");
-  const empty=(!hotels||!hotels.length)&&(!exphotos||!exphotos.length);
+  const routePhotos=(vphotos||[]).filter(p=>p.storage_path);   // 收仓库的路线图/酒店照片
+  const empty=(!hotels||!hotels.length)&&(!exphotos||!exphotos.length)&&!routePhotos.length;
+  const labelOf=p=>p.slot_key==='hotel_route'?'酒店到场馆路线':(p.note||p.slot_label||'照片');
   app.innerHTML=`
     <div class="wh-intro">📦 暂时收起来的酒店和照片都在这里。<b>不会真删</b>。捞酒店时可以<b>选捞到哪个场馆</b>（连照片一起搬过去），照片默认回原场馆。</div>
     ${empty?`<div class="muted-empty" style="margin-top:24px">仓库是空的 ✨ —— 没有被收起来的东西</div>`:""}
@@ -324,6 +327,12 @@ async function renderWarehouse(){
         <div class="wh-photo-meta">${esc(e.note||"补充照片")}<br><span class="muted">${esc(vmap[e.venue_id]||"—")}</span></div>
         <button class="btn-sm wh-restore" data-kind="extra" data-id="${e.id}">♻️ 捞回原场馆</button>
       </div>`).join("")}</div></div>`:""}
+    ${routePhotos.length?`<div class="section"><h3><span class="dot"></span>🗺 收起来的路线图/照片<span class="count">${routePhotos.length} 张</span></h3>
+      <div class="wh-photos">${routePhotos.map(p=>`<div class="wh-photo">
+        <img src="${pubUrl(p.storage_path)}" alt="" loading="lazy">
+        <div class="wh-photo-meta">${esc(labelOf(p))}<br><span class="muted">${esc(vmap[p.venue_id]||"—")}</span></div>
+        <button class="btn-sm wh-restore" data-kind="photo" data-id="${p.id}">♻️ 捞回原酒店</button>
+      </div>`).join("")}</div></div>`:""}
   `;
   app.querySelectorAll(".wh-restore").forEach(btn=>{
     btn.onclick=async()=>{
@@ -341,6 +350,10 @@ async function renderWarehouse(){
           await logAct(target,"从仓库捞入酒店",h.name||"酒店");
         }
         toast("已捞到 "+(vmap[target]||"场馆")+" ✓");
+      } else if(btn.dataset.kind==="photo"){
+        const {error}=await sb.from("venue_photos").update({archived_at:null}).eq("id",btn.dataset.id);
+        if(error){ toast("捞回失败"); btn.disabled=false; return; }
+        toast("已捞回原酒店 ✓");
       } else {
         const {error}=await sb.from("extra_photos").update({archived_at:null}).eq("id",btn.dataset.id);
         if(error){ toast("捞回失败"); btn.disabled=false; return; }
@@ -358,7 +371,7 @@ async function renderDetail(id){
   app.innerHTML = `<div class="loading">加载场馆资料…</div>`;
   const [{data:v},{data:photos},{data:hotels},{data:events},{data:logs},{data:extras},{data:acts}] = await Promise.all([
     sb.from("venues").select("*").eq("id",id).single(),
-    sb.from("venue_photos").select("*").eq("venue_id",id).order("sort_order"),
+    sb.from("venue_photos").select("*").eq("venue_id",id).is("archived_at",null).order("sort_order"),
     sb.from("venue_hotels").select("*").eq("venue_id",id).is("archived_at",null).order("sort_order"),
     sb.from("venue_events").select("*").eq("venue_id",id).order("sort_order"),
     sb.from("survey_logs").select("*").eq("venue_id",id).order("created_at",{ascending:false}),
@@ -435,7 +448,7 @@ async function renderDetail(id){
 
     <div class="section">
       <h3><span class="dot dh"></span>🏨 酒店<span class="count">${hotels?.length||0} 家</span>${canEdit()?`<button class="sec-edit" id="add-hotel">＋添加酒店</button>`:""}</h3>
-      ${(hotels&&hotels.length)? hotels.map(h=>hotelModuleHTML(h, photos, id)).join("") : `<div class="muted-empty">${canEdit()?"还没有酒店，点「＋添加酒店」录入":"暂无"}</div>`}
+      ${(hotels&&hotels.length)? hotels.map(h=>hotelModuleHTML(h, photos, id, hotels)).join("") : `<div class="muted-empty">${canEdit()?"还没有酒店，点「＋添加酒店」录入":"暂无"}</div>`}
     </div>
 
     ${canEdit()?`<div class="section">
@@ -599,6 +612,23 @@ async function renderDetail(id){
       const {error}=await sb.from("venue_photos").insert({venue_id:id,hotel_id:hid,slot_key:"hotel_route",slot_group:"酒店",slot_label:"酒店到场馆路线",slot_type:"paste",storage_path:null,sort_order:9});
       if(error){ toast("添加失败"); return; }
       await logAct(id,"添加酒店路线坑位",null); toast("坑位已建，点它上传路线图"); renderDetail(id);
+    };
+  });
+  // 路线图「📦收仓库」：软删除(可捞回)
+  app.querySelectorAll(".rdel").forEach(btn=>{
+    btn.onclick=async(e)=>{ e.stopPropagation();
+      if(!confirm("把这张路线图收进仓库？（可从仓库捞回来，不会真删）")) return;
+      await sb.from("venue_photos").update({archived_at:new Date().toISOString()}).eq("id",btn.dataset.pid);
+      await logAct(id,"收进仓库·路线图",null); toast("已收进仓库 📦"); renderDetail(id);
+    };
+  });
+  // 路线图「🔀换酒店」：改挂到本馆别家酒店
+  app.querySelectorAll(".rmig").forEach(btn=>{
+    btn.onclick=(e)=>{ e.stopPropagation();
+      const rp=(photos||[]).find(x=>x.id===btn.dataset.pid); if(!rp) return;
+      const others=(hotels||[]).filter(x=>x.id!==rp.hotel_id);
+      if(!others.length){ toast("没有别的酒店可换"); return; }
+      openRoutePicker(rp, others, id);
     };
   });
   // 酒店「＋加照片」：直接拍/选→建酒店级自由照片行（拖拽也支持）
@@ -779,9 +809,10 @@ function myNoteHTML(key, hid){
 function addSlotBtnHTML(vid, hid, scope, label){
   return `<div class="docslot empty addslot" data-scope="${scope}" data-hid="${hid||""}"><div class="ico">＋</div><div class="lab">${label||"添加一套"}</div></div>`;
 }
-function hotelModuleHTML(h, photos, vid){
+function hotelModuleHTML(h, photos, vid, allHotels){
   const hp=(photos||[]).filter(p=>p.hotel_id===h.id);
   const main=HMAIN.map(k=>hp.find(p=>p.slot_key===k)).filter(Boolean);
+  const multiHotel=(allHotels||[]).length>1;
   return `<div class="module module-hotel">
     ${canEdit()?`<div class="hbar"><span class="hbar-tag">🏨 酒店</span><span class="hacts"><button class="hedit" data-hid="${h.id}">✏️ 改信息</button><button class="hmig" data-hid="${h.id}">🔀 迁移</button><button class="hdel del" data-hid="${h.id}">📦 收仓库</button></span></div>`:""}
     <div class="mh-head">
@@ -792,7 +823,8 @@ function hotelModuleHTML(h, photos, vid){
     <div class="hmeta"><span class="lab">最近交通</span><span>${esc(h.nearest_transit||"—")}</span></div>
     ${h.url?`<div class="hmeta"><span class="lab">官网</span><a href="${esc(h.url)}" target="_blank" rel="noopener" style="color:var(--accent)">打开官网 ↗</a></div>`:""}
     ${(()=>{ const rp=hp.find(p=>p.slot_key==='hotel_route');
-      if(rp) return `<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线</div><div class="slots docs">${docSlotHTML(rp,false)}</div></div>`;
+      if(rp&&rp.storage_path) return `<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线${canEdit()?`<span class="route-acts">${multiHotel?`<button class="rmig" data-pid="${rp.id}">🔀 换酒店</button>`:""}<button class="rdel" data-pid="${rp.id}">📦 收仓库</button></span>`:""}</div><div class="slots docs">${docSlotHTML(rp,false)}</div></div>`;
+      if(rp) return canEdit()?`<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线</div><div class="slots docs">${docSlotHTML(rp,false)}</div></div>`:"";
       return canEdit()?`<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线</div><div class="slots docs"><div class="docslot empty addroute" data-hid="${h.id}"><div class="ico">🖼️</div><div class="lab">酒店到场馆路线 · 点击上传</div></div></div></div>`:""; })()}
     ${main.length?`<div class="slots" style="margin-top:10px">${main.map(slotHTML).join("")}</div>`:""}
     ${(()=>{ const ex=hp.filter(p=>!HMAIN.includes(p.slot_key)&&p.slot_key!=='hotel_route');
@@ -895,6 +927,23 @@ function addHotelPhoto(venueId, hid, el){
   input.type="file"; input.accept="image/*";
   input.onchange=()=>{ const f=input.files[0]; if(f) doHotelPhotoUpload(f, venueId, hid, el); };
   input.click();
+}
+// 路线图换酒店：本馆其他酒店下拉选
+function openRoutePicker(rp, others, venueId){
+  const ov=document.createElement("div"); ov.className="drvmodal";
+  ov.innerHTML=`<div class="nbox"><div class="ntitle">🔀 这张路线图换到哪家酒店</div>
+    <select id="rpick" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:15px">${others.map(h=>`<option value="${h.id}">${esc(h.name||"酒店")}</option>`).join("")}</select>
+    <div class="nacts"><button class="btn ghost" id="rp-cancel">取消</button><button class="btn" id="rp-ok">确认换过去</button></div></div>`;
+  document.body.appendChild(ov); ov.classList.add("on");
+  const close=()=>ov.remove();
+  ov.addEventListener("click",e=>{ if(e.target===ov) close(); });
+  ov.querySelector("#rp-cancel").onclick=close;
+  ov.querySelector("#rp-ok").onclick=async()=>{
+    const hid=ov.querySelector("#rpick").value;
+    const {error}=await sb.from("venue_photos").update({hotel_id:hid}).eq("id",rp.id);
+    if(error){ toast("换酒店失败"); return; }
+    await logAct(venueId,"路线图换酒店",null); close(); toast("已换酒店 ✓"); renderDetail(venueId);
+  };
 }
 
 /* ---------------- 照片交互：短按看大图 / 长按看备注 ---------------- */

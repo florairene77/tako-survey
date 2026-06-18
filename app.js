@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=34";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=35";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -425,7 +425,6 @@ async function renderDetail(id){
         <div class="hmeta"><span class="lab">场馆</span><span>${esc(v.venue_name_jp||"")}</span></div>
         <div class="hmeta"><span class="lab">地址</span><span>${esc(v.venue_address||"—")}</span></div>
         <div class="hmeta"><span class="lab">最近交通</span><span>${esc(v.nearest_transit||"—")}</span></div>
-        <div class="hmeta"><span class="lab">停车</span><span>${esc(v.parking_note||"—")}</span></div>
       </div>
       ${v.venue_intro?`<div class="intro-box" style="margin-bottom:10px">${esc(fmtIntro(v.venue_intro))}</div>`:""}
       <div class="slots">${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id).map(slotHTML).join("")}${(()=>{ const base=(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id&&/场馆周边/.test(p.slot_label||"")).length; return (extras||[]).map((e,i)=>extraHTML(e, base+1+i)).join(""); })()}${canEdit()?`<div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}</div>
@@ -602,6 +601,14 @@ async function renderDetail(id){
       await logAct(id,"添加酒店路线坑位",null); toast("坑位已建，点它上传路线图"); renderDetail(id);
     };
   });
+  // 酒店「＋加照片」：直接拍/选→建酒店级自由照片行（拖拽也支持）
+  app.querySelectorAll(".addhotelphoto").forEach(el=>{
+    el.onclick=()=>addHotelPhoto(id, el.dataset.hid, el);
+    el.addEventListener("dragover",e=>{ e.preventDefault(); el.classList.add("dragover"); });
+    el.addEventListener("dragleave",()=>el.classList.remove("dragover"));
+    el.addEventListener("drop",e=>{ e.preventDefault(); el.classList.remove("dragover");
+      const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) doHotelPhotoUpload(f, id, el.dataset.hid, el); });
+  });
   // 补充照片
   app.querySelectorAll(".slot[data-eid]").forEach(el=>{
     const get=()=>(extras||[]).find(x=>x.id===el.dataset.eid);
@@ -711,6 +718,22 @@ function extraHTML(e, num){
     <div class="caption"><span class="lab">${esc(label)}</span>${strip}</div>
   </div>`;
 }
+// 酒店自由照片（方格，编号"酒店周边N"，接固定周边①②③往后；和场馆 extraHTML 同风格）
+function hotelExtraHTML(p, num){
+  const label="酒店周边"+circled(num);
+  let note=(canEdit()||p.note_public!==false) ? (p.note||"").trim() : "";
+  if(note===label) note="";
+  // 旧自定义坑名(非占位)当金色描述，别丢
+  if(!note && p.slot_label && !/^(more|酒店照片|酒店周边)/.test(p.slot_label)) note=p.slot_label;
+  if(p.storage_path){
+    const strip = note ? `<span class="cap note">${esc(note)}</span>` : "";
+    return `<div class="slot filled${note?" hasnote":""}" data-pid="${p.id}"${note?` title="${esc(note)}"`:""}>
+      <img loading="lazy" src="${pubUrl(p.storage_path,p.updated_at)}" alt="${esc(label)}">
+      <div class="caption"><span class="lab">${esc(label)}</span>${strip}</div>
+    </div>`;
+  }
+  return `<div class="slot empty" data-pid="${p.id}"><div class="ico">📷</div><div class="lab">${esc(label)}</div>${canEdit()?`<div class="hint">点击上传</div>`:""}</div>`;
+}
 function docSlotHTML(p, showRename=true){
   const ren = (canEdit()&&showRename)?`<button class="docrename" data-pid="${p.id}">✏️改名</button>`:"";
   if(p.storage_path){
@@ -773,8 +796,8 @@ function hotelModuleHTML(h, photos, vid){
       return canEdit()?`<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线</div><div class="slots docs"><div class="docslot empty addroute" data-hid="${h.id}"><div class="ico">🖼️</div><div class="lab">酒店到场馆路线 · 点击上传</div></div></div></div>`:""; })()}
     ${main.length?`<div class="slots" style="margin-top:10px">${main.map(slotHTML).join("")}</div>`:""}
     ${(()=>{ const ex=hp.filter(p=>!HMAIN.includes(p.slot_key)&&p.slot_key!=='hotel_route');
-      return (ex.length||canEdit())?`<div class="subcat"><div class="subcat-t">📎 补充资料（路线/餐饮/住宿等 · 照片+备注）</div>
-        <div class="slots docs">${ex.map(p=>docSlotHTML(p,true)).join("")}${canEdit()?addSlotBtnHTML(vid,h.id,'more','＋添加'):""}</div></div>`:""; })()}
+      const base=HMAIN.filter(k=>/surround/.test(k)).length;   // 固定"酒店周边"数(3)，自由照片接着④⑤⑥
+      return (ex.length||canEdit())?`<div class="slots" style="margin-top:10px">${ex.map((p,i)=>hotelExtraHTML(p, base+1+i)).join("")}${canEdit()?`<div class="slot add addhotelphoto" data-hid="${h.id}"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}</div>`:""; })()}
     ${h.hotel_intro?`<div class="intro">${esc(fmtIntro(h.hotel_intro))}</div>`:""}
     ${tipsCardHTML(h.public_tips, `tips-h-${h.id}`)}
     ${canEdit()?internalCardHTML(h.internal_note, `int-h-${h.id}`):""}
@@ -848,6 +871,29 @@ function addExtraPhoto(venueId, el){
   const input=document.createElement("input");
   input.type="file"; input.accept="image/*"; // 拍照/相册/文件 都可
   input.onchange=()=>{ const f=input.files[0]; if(f) doExtraUpload(f, venueId, el); };
+  input.click();
+}
+
+/* 酒店级自由照片：随手拍，建 venue_photos 行(带 hotel_id)，渲染成"酒店周边N" */
+async function doHotelPhotoUpload(file, venueId, hid, el){
+  if(!file || !/^image\//.test(file.type)){ toast("请选图片文件"); return; }
+  el.classList.add("uploading");
+  try{
+    const blob=await compress(file);
+    const key=`${venueId}/${hid.slice(0,8)}_more_${Math.random().toString(36).slice(2,6)}.jpg`;
+    const {error:upErr}=await sb.storage.from(BUCKET).upload(key,blob,{upsert:true,contentType:"image/jpeg"});
+    if(upErr) throw upErr;
+    const note=(prompt("给这张照片补充说明（如：步行2分钟有便利店；留空就用编号）：")||"").trim();
+    const {error:dbErr}=await sb.from("venue_photos").insert({venue_id:venueId,hotel_id:hid,slot_key:"more_"+Math.random().toString(36).slice(2,8),slot_group:"酒店",slot_label:"酒店照片",slot_type:"photo",storage_path:key,note:note||null,note_public:true,sort_order:50});
+    if(dbErr) throw dbErr;
+    await logAct(venueId, "加酒店照片", note||"酒店照片");
+    toast("已添加 ✓"); offerSaveToAlbum(file); maybeThank(); renderDetail(venueId);
+  }catch(e){ console.error(e); toast("上传失败："+(e.message||e)); el.classList.remove("uploading"); }
+}
+function addHotelPhoto(venueId, hid, el){
+  const input=document.createElement("input");
+  input.type="file"; input.accept="image/*";
+  input.onchange=()=>{ const f=input.files[0]; if(f) doHotelPhotoUpload(f, venueId, hid, el); };
   input.click();
 }
 
@@ -1191,7 +1237,7 @@ function openVenueEditor(v){
   venueEditing=v.id;
   const set=(id,val)=>document.getElementById(id).value=val||"";
   set("vm-name",v.venue_name_jp); set("vm-addr",v.venue_address);
-  set("vm-transit",v.nearest_transit); set("vm-parking",v.parking_note); set("vm-intro",v.venue_intro);
+  set("vm-transit",v.nearest_transit); set("vm-intro",v.venue_intro);
   venuem.classList.add("on");
 }
 document.getElementById("vm-cancel").onclick=()=>venuem.classList.remove("on");
@@ -1200,7 +1246,7 @@ document.getElementById("vm-save").onclick=async()=>{
   if(!venueEditing) return;
   const g=id=>document.getElementById(id).value.trim();
   const upd={ venue_name_jp:g("vm-name")||null, venue_address:g("vm-addr")||null,
-    nearest_transit:g("vm-transit")||null, parking_note:g("vm-parking")||null, venue_intro:g("vm-intro")||null };
+    nearest_transit:g("vm-transit")||null, venue_intro:g("vm-intro")||null };
   const {error}=await sb.from("venues").update(upd).eq("id",venueEditing);
   if(error){ toast("保存失败"); return; }
   await logAct(venueEditing,"编辑基本信息", upd.venue_name_jp||"场馆");

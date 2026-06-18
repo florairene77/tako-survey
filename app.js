@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=38";
+import { SUPABASE_URL, SUPABASE_KEY, BUCKET, EDIT_PASSWORD, VIEW_PASSWORD } from "./config.js?v=39";
 
 const { createClient } = window.supabase;        // 本地 vendor/supabase.js（全局 UMD）
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -501,8 +501,8 @@ async function renderDetail(id){
   app.querySelectorAll(".slot[data-pid], .docslot[data-pid]").forEach(el=>{
     const get=()=>(photos||[]).find(x=>x.id===el.dataset.pid);
     if(canEdit()) enableSlotDrop(el, get);   // 电脑端拖拽上传/替换
-    if(!get().storage_path){ // 空坑位
-      if(canEdit()) el.onclick=()=>pickAndUpload(get(), el, id);
+    if(!get().storage_path){ // 空坑位：点=上传；长按(手机)/右键(电脑)=删掉这个不需要的坑位
+      if(canEdit()) bindEmptySlot(el, get, id);
       return;
     }
     bindPhoto(el,
@@ -550,18 +550,34 @@ async function renderDetail(id){
       await logAct(id,"编辑酒店重要提示",h.name); toast("已保存"); maybeThank(); renderDetail(id);
     });
   });
-  // 我的笔记 保存（编辑专属）
-  app.querySelectorAll(".mynote-save").forEach(btn=>{
+  // 我的笔记（留言墙，编辑专属）：添加新笔记
+  app.querySelectorAll(".mynote-add").forEach(btn=>{
     btn.onclick=async()=>{
       const key=btn.dataset.key, hid=btn.dataset.hid||null;
-      const ta=btn.closest(".mynote").querySelector(".mynote-ta");
-      const val=ta.value.trim();
-      const existing=SNOTES.find(n=>n.section_key===key && (n.hotel_id||null)===hid);
-      let error;
-      if(existing){ ({error}=await sb.from("section_notes").update({note:val||null,updated_by:whoami(),updated_at:new Date().toISOString()}).eq("id",existing.id)); }
-      else { ({error}=await sb.from("section_notes").insert({venue_id:id,hotel_id:hid,section_key:key,note:val||null,updated_by:whoami()})); }
+      const ta=btn.closest(".mynote-newbox").querySelector(".mynote-new");
+      const val=ta.value.trim(); if(!val){ toast("写点内容再添加"); return; }
+      const {error}=await sb.from("section_notes").insert({venue_id:id,hotel_id:hid,section_key:key,note:val,updated_by:whoami()});
       if(error){ toast("保存失败"); return; }
-      toast("笔记已保存 ✓"); renderDetail(id);
+      toast("笔记已添加 ✓"); renderDetail(id);
+    };
+  });
+  // 改已存笔记
+  app.querySelectorAll(".mynote-update").forEach(btn=>{
+    btn.onclick=async()=>{
+      const ta=btn.closest(".mynote-card").querySelector(".mynote-edit");
+      const val=ta.value.trim(); if(!val){ toast("内容空了，想删请点「删」"); return; }
+      const {error}=await sb.from("section_notes").update({note:val,updated_by:whoami(),updated_at:new Date().toISOString()}).eq("id",btn.dataset.id);
+      if(error){ toast("保存失败"); return; }
+      toast("已更新 ✓"); renderDetail(id);
+    };
+  });
+  // 删笔记
+  app.querySelectorAll(".mynote-del").forEach(btn=>{
+    btn.onclick=async()=>{
+      if(!confirm("删掉这条笔记？")) return;
+      const {error}=await sb.from("section_notes").delete().eq("id",btn.dataset.id);
+      if(error){ toast("删除失败"); return; }
+      toast("已删除"); renderDetail(id);
     };
   });
   // 概览/补充资料 坑位改名
@@ -629,6 +645,15 @@ async function renderDetail(id){
       const others=(hotels||[]).filter(x=>x.id!==rp.hotel_id);
       if(!others.length){ toast("没有别的酒店可换"); return; }
       openRoutePicker(rp, others, id);
+    };
+  });
+  // 路线图「🔁调换」：和别家酒店的路线图互换(防两家贴反)
+  app.querySelectorAll(".rswap").forEach(btn=>{
+    btn.onclick=(e)=>{ e.stopPropagation();
+      const rp=(photos||[]).find(x=>x.id===btn.dataset.pid); if(!rp) return;
+      const cands=(photos||[]).filter(p=>p.slot_key==='hotel_route'&&p.storage_path&&p.hotel_id&&p.hotel_id!==rp.hotel_id);
+      if(!cands.length){ toast("没有别家酒店的路线图可调换"); return; }
+      openRouteSwap(rp, cands, hotels||[], id);
     };
   });
   // 酒店「＋加照片」：直接拍/选→建酒店级自由照片行（拖拽也支持）
@@ -797,13 +822,21 @@ function internalCardHTML(text, editId){
 }
 function myNoteHTML(key, hid){
   if(!canEdit()) return "";
-  const rec=SNOTES.find(n=>n.section_key===key && (n.hotel_id||null)===(hid||null));
-  const txt=rec?.note||"";
-  const meta=rec&&rec.updated_at?`改于 ${new Date(rec.updated_at).toLocaleDateString()}`:"";
-  return `<details class="mynote"${txt?" open":""}>
-    <summary>📝 我的笔记（仅编辑可见）${txt?" · 已记":""}</summary>
-    <textarea class="mynote-ta" placeholder="随手记，只有编辑能看到…">${esc(txt)}</textarea>
-    <div class="mynote-row"><span class="mynote-meta">${meta}</span><button class="btn-sm mynote-save" data-key="${key}" data-hid="${hid||""}">保存笔记</button></div>
+  // 留言墙：每条已存的笔记=一张可改可删的卡片，底部永远留一个空框加新笔记
+  const recs=SNOTES.filter(n=>n.section_key===key && (n.hotel_id||null)===(hid||null) && (n.note||"").trim())
+    .sort((a,b)=>((a.updated_at||"")+"").localeCompare((b.updated_at||"")+""));
+  const cards=recs.map(r=>`<div class="mynote-card">
+    <textarea class="mynote-edit" data-id="${r.id}">${esc(r.note)}</textarea>
+    <div class="mynote-row"><span class="mynote-meta">${r.updated_at?`改于 ${new Date(r.updated_at).toLocaleDateString()}`:""}</span>
+      <span><button class="btn-sm mynote-update" data-id="${r.id}">改</button> <button class="btn-sm ghost mynote-del" data-id="${r.id}">删</button></span></div>
+  </div>`).join("");
+  return `<details class="mynote"${recs.length?" open":""}>
+    <summary>📝 我的笔记（仅编辑可见）${recs.length?` · ${recs.length} 条`:""}</summary>
+    ${cards}
+    <div class="mynote-newbox">
+      <textarea class="mynote-new" placeholder="写一条新笔记…只有编辑能看到"></textarea>
+      <div class="mynote-row"><span class="mynote-meta">${recs.length?"":"随手记，留言墙一样可以一直加"}</span><button class="btn-sm mynote-add" data-key="${key}" data-hid="${hid||""}">＋ 添加笔记</button></div>
+    </div>
   </details>`;
 }
 function addSlotBtnHTML(vid, hid, scope, label){
@@ -824,7 +857,7 @@ function hotelModuleHTML(h, photos, vid, allHotels, done){
     <div class="hmeta"><span class="lab">最近交通</span><span>${esc(h.nearest_transit||"—")}</span></div>
     ${h.url?`<div class="hmeta"><span class="lab">官网</span><a href="${esc(h.url)}" target="_blank" rel="noopener" style="color:var(--accent)">打开官网 ↗</a></div>`:""}
     ${(()=>{ const rp=hp.find(p=>p.slot_key==='hotel_route');
-      if(rp&&rp.storage_path) return `<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线${canEdit()?`<span class="route-acts">${multiHotel?`<button class="rmig" data-pid="${rp.id}">🔀 换酒店</button>`:""}<button class="rdel" data-pid="${rp.id}">📦 收仓库</button></span>`:""}</div><div class="slots docs">${docSlotHTML(rp,false)}</div></div>`;
+      if(rp&&rp.storage_path) return `<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线${canEdit()?`<span class="route-acts">${multiHotel?`<button class="rmig" data-pid="${rp.id}">🔀 换酒店</button><button class="rswap" data-pid="${rp.id}">🔁 调换</button>`:""}<button class="rdel" data-pid="${rp.id}">📦 收仓库</button></span>`:""}</div><div class="slots docs">${docSlotHTML(rp,false)}</div></div>`;
       if(done) return "";   // 踏勘完成后，没传路线图的空坑不再显示
       if(rp) return canEdit()?`<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线</div><div class="slots docs">${docSlotHTML(rp,false)}</div></div>`:"";
       return canEdit()?`<div class="subcat"><div class="subcat-t">🗺 酒店到场馆路线</div><div class="slots docs"><div class="docslot empty addroute" data-hid="${h.id}"><div class="ico">🖼️</div><div class="lab">酒店到场馆路线 · 点击上传</div></div></div></div>`:""; })()}
@@ -947,6 +980,27 @@ function openRoutePicker(rp, others, venueId){
     await logAct(venueId,"路线图换酒店",null); close(); toast("已换酒店 ✓"); renderDetail(venueId);
   };
 }
+// 路线图调换：和另一家酒店的路线图互换归属(两家贴反时对调)
+function openRouteSwap(rp, cands, hotels, venueId){
+  const hname=hid=>(hotels.find(h=>h.id===hid)?.name)||"酒店";
+  const ov=document.createElement("div"); ov.className="drvmodal";
+  ov.innerHTML=`<div class="nbox"><div class="ntitle">🔁 和哪家酒店的路线图互换</div>
+    <div class="hint-line" style="margin-bottom:8px">两家路线图贴反了？选一家，两张图对调回来</div>
+    <select id="rswapsel" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:15px">${cands.map(c=>`<option value="${c.id}">${esc(hname(c.hotel_id))}</option>`).join("")}</select>
+    <div class="nacts"><button class="btn ghost" id="rs-cancel">取消</button><button class="btn" id="rs-ok">确认对调</button></div></div>`;
+  document.body.appendChild(ov); ov.classList.add("on");
+  const close=()=>ov.remove();
+  ov.addEventListener("click",e=>{ if(e.target===ov) close(); });
+  ov.querySelector("#rs-cancel").onclick=close;
+  ov.querySelector("#rs-ok").onclick=async()=>{
+    const other=cands.find(c=>c.id===ov.querySelector("#rswapsel").value); if(!other) return;
+    const a=rp.hotel_id, b=other.hotel_id;
+    const {error:e1}=await sb.from("venue_photos").update({hotel_id:b}).eq("id",rp.id);
+    const {error:e2}=await sb.from("venue_photos").update({hotel_id:a}).eq("id",other.id);
+    if(e1||e2){ toast("调换失败"); return; }
+    await logAct(venueId,"路线图调换",hname(a)+" ↔ "+hname(b)); close(); toast("已对调 ✓"); renderDetail(venueId);
+  };
+}
 
 /* ---------------- 照片交互：短按看大图 / 长按看备注 ---------------- */
 function noteOf(ctx){ const r=ctx.rec; return (r.note || (ctx.kind==="extra"? r.caption : "") || ""); }
@@ -962,6 +1016,28 @@ function bindPhoto(el, onTap, onLong){
   el.addEventListener("mouseleave",cancel);
   el.addEventListener("contextmenu",e=>e.preventDefault());
   el.addEventListener("click",e=>{ if(longFired){ e.preventDefault(); longFired=false; return; } onTap(); });
+}
+
+/* 空坑位：点=上传；长按(手机)/右键(电脑)=删掉这个不需要的坑位 */
+function bindEmptySlot(el, getP, venueId){
+  let timer=null, longFired=false;
+  const start=()=>{ longFired=false; timer=setTimeout(()=>{ longFired=true; confirmDeleteSlot(getP(), venueId); }, 600); };
+  const cancel=()=>clearTimeout(timer);
+  el.addEventListener("touchstart",start,{passive:true});
+  el.addEventListener("touchend",cancel);
+  el.addEventListener("touchmove",cancel,{passive:true});
+  el.addEventListener("mousedown",start);
+  el.addEventListener("mouseup",cancel);
+  el.addEventListener("mouseleave",cancel);
+  el.addEventListener("contextmenu",e=>{ e.preventDefault(); cancel(); confirmDeleteSlot(getP(), venueId); });
+  el.addEventListener("click",e=>{ if(longFired){ e.preventDefault(); longFired=false; return; } pickAndUpload(getP(), el, venueId); });
+}
+async function confirmDeleteSlot(p, venueId){
+  if(!p) return;
+  if(!confirm(`删除「${p.slot_label||"这个"}」坑位？\n\n不需要这个坑（比如这家酒店不用拍大堂）就删掉，页面更清爽。`)) return;
+  const {error}=await sb.from("venue_photos").delete().eq("id",p.id);
+  if(error){ toast("删除失败"); return; }
+  await logAct(venueId,"删除坑位",p.slot_label); toast("已删除坑位 🗑"); renderDetail(venueId);
 }
 
 /* ---------------- 备注弹窗（长按触发） ---------------- */

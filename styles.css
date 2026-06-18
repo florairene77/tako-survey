@@ -325,6 +325,15 @@ a{color:inherit}
 .mynote-ta:focus{border-color:var(--sage);outline:none}
 .mynote-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0 12px}
 .mynote-meta{font-size:11px;color:var(--muted)}
+/* 留言墙：已存的笔记=白底卡片(看着"贴上去了")，底部空框=加新笔记 */
+.mynote-card{background:#fff;border:1px solid var(--sage);border-radius:11px;padding:9px 11px;margin:0 0 9px;box-shadow:0 1px 3px rgba(91,144,121,.08)}
+.mynote-card .mynote-edit{width:100%;min-height:46px;border:none;background:transparent;font-size:14px;line-height:1.6;resize:vertical;font-family:inherit;box-sizing:border-box;padding:0;color:var(--ink)}
+.mynote-card .mynote-edit:focus{outline:none}
+.mynote-card .mynote-row{padding:6px 0 0;border-top:1px dashed var(--line);margin-top:6px}
+.mynote-newbox{border-top:1px dashed var(--sage);padding-top:9px}
+.mynote-new{width:100%;min-height:50px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px;line-height:1.6;resize:vertical;font-family:inherit;box-sizing:border-box;background:#fff}
+.mynote-new:focus{border-color:var(--sage);outline:none}
+.btn-sm.ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
 .btn-sm{font-size:12px;padding:5px 14px;border-radius:9px;border:none;background:var(--sage);color:#fff;font-weight:600}
 .docslot.addslot{display:flex;flex-direction:column;align-items:center;justify-content:center;border:1.5px dashed var(--sage);background:var(--sage-soft);color:var(--sage-d);cursor:pointer;min-height:90px}
 /* 模块内 酒店信息行 / 简介（继承原 .hotel 排版，修标签挤在一起） */

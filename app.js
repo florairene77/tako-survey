@@ -439,7 +439,6 @@ async function renderDetail(id){
         <div class="hmeta"><span class="lab">地址</span><span>${esc(v.venue_address||"—")}</span></div>
         <div class="hmeta"><span class="lab">最近交通</span><span>${esc(v.nearest_transit||"—")}</span></div>
       </div>
-      ${v.venue_intro?`<div class="intro-box" style="margin-bottom:10px">${esc(fmtIntro(v.venue_intro))}</div>`:""}
       <div class="slots">${(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id&&(!v.survey_done||p.storage_path)).map(slotHTML).join("")}${(()=>{ const base=(photos||[]).filter(p=>p.slot_group==='场馆'&&!p.hotel_id&&/场馆周边/.test(p.slot_label||"")).length; return (extras||[]).map((e,i)=>extraHTML(e, base+1+i)).join(""); })()}${canEdit()?`<div class="slot add" id="add-extra"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}</div>
       ${tipsCardHTML(v.public_tips, `tips-venue`)}
       ${canEdit()?internalCardHTML(v.internal_note, `int-venue`):""}
@@ -865,7 +864,6 @@ function hotelModuleHTML(h, photos, vid, allHotels, done){
     ${(()=>{ const ex=hp.filter(p=>!HMAIN.includes(p.slot_key)&&p.slot_key!=='hotel_route');
       const base=HMAIN.filter(k=>/surround/.test(k)).length;   // 固定"酒店周边"数(3)，自由照片接着④⑤⑥
       return (ex.length||canEdit())?`<div class="slots" style="margin-top:10px">${ex.map((p,i)=>hotelExtraHTML(p, base+1+i)).join("")}${canEdit()?`<div class="slot add addhotelphoto" data-hid="${h.id}"><div class="ico">＋</div><div class="lab">加照片</div></div>`:""}</div>`:""; })()}
-    ${h.hotel_intro?`<div class="intro">${esc(fmtIntro(h.hotel_intro))}</div>`:""}
     ${tipsCardHTML(h.public_tips, `tips-h-${h.id}`)}
     ${canEdit()?internalCardHTML(h.internal_note, `int-h-${h.id}`):""}
     ${myNoteHTML('hotel',h.id)}
@@ -1149,7 +1147,7 @@ function parseHotelBlob(raw){
 }
 async function openAddHotel(venueId){
   hotelEditing={id:null, venueId};
-  ["hm-name","hm-address","hm-room","hm-transit","hm-travel","hm-url","hm-intro","hm-paste"].forEach(i=>document.getElementById(i).value="");
+  ["hm-name","hm-address","hm-room","hm-transit","hm-travel","hm-url","hm-paste"].forEach(i=>document.getElementById(i).value="");
   document.querySelector("#hotelm .ntitle").textContent="添加酒店";
   document.getElementById("hm-modesw").style.display="";   // 仅新增时显示模式切换
   setHmMode("new");
@@ -1175,7 +1173,6 @@ function openHotelEditor(h, venueId){
   document.getElementById("hm-transit").value=h.nearest_transit||"";
   document.getElementById("hm-travel").value=h.travel_time||"";
   document.getElementById("hm-url").value=h.url||"";
-  document.getElementById("hm-intro").value=h.hotel_intro||"";
   hotelm.classList.add("on");
 }
 document.getElementById("hm-cancel").onclick=()=>hotelm.classList.remove("on");
@@ -1185,7 +1182,7 @@ document.getElementById("hm-parse").onclick=()=>{
   const p=parseHotelBlob(raw);
   const setIf=(id,val)=>{ const el=document.getElementById(id); if(val) el.value=val; };
   setIf("hm-name",p.name); setIf("hm-address",p.address); setIf("hm-room",p.room);
-  setIf("hm-transit",p.transit); setIf("hm-travel",p.travel); setIf("hm-url",p.url); setIf("hm-intro",p.intro);
+  setIf("hm-transit",p.transit); setIf("hm-travel",p.travel); setIf("hm-url",p.url);
   toast("已识别填入，请核对 ✓");
 };
 document.getElementById("hm-mnew").onclick=()=>setHmMode("new");
@@ -1197,13 +1194,13 @@ async function hmPrefill(hid){
   if(!s) return;
   const set=(i,val)=>document.getElementById(i).value=val||"";
   set("hm-name",s.name); set("hm-address",s.address); set("hm-room",s.room_type);
-  set("hm-transit",s.nearest_transit); set("hm-travel",s.travel_time); set("hm-url",s.url); set("hm-intro",s.hotel_intro);
+  set("hm-transit",s.nearest_transit); set("hm-travel",s.travel_time); set("hm-url",s.url);
 }
 document.getElementById("hm-save").onclick=async()=>{
   if(!hotelEditing) return;
   const g=id=>document.getElementById(id).value.trim();
   const upd={ name:g("hm-name")||null, address:g("hm-address")||null, room_type:g("hm-room")||null,
-    nearest_transit:g("hm-transit")||null, travel_time:g("hm-travel")||null, url:g("hm-url")||null, hotel_intro:g("hm-intro")||null };
+    nearest_transit:g("hm-transit")||null, travel_time:g("hm-travel")||null, url:g("hm-url")||null };
   const saveBtn=document.getElementById("hm-save"); saveBtn.disabled=true;
   try{
     if(hotelEditing.id){
@@ -1364,7 +1361,7 @@ function openVenueEditor(v){
   venueEditing=v.id;
   const set=(id,val)=>document.getElementById(id).value=val||"";
   set("vm-name",v.venue_name_jp); set("vm-addr",v.venue_address);
-  set("vm-transit",v.nearest_transit); set("vm-intro",v.venue_intro);
+  set("vm-transit",v.nearest_transit);
   venuem.classList.add("on");
 }
 document.getElementById("vm-cancel").onclick=()=>venuem.classList.remove("on");
@@ -1373,7 +1370,7 @@ document.getElementById("vm-save").onclick=async()=>{
   if(!venueEditing) return;
   const g=id=>document.getElementById(id).value.trim();
   const upd={ venue_name_jp:g("vm-name")||null, venue_address:g("vm-addr")||null,
-    nearest_transit:g("vm-transit")||null, venue_intro:g("vm-intro")||null };
+    nearest_transit:g("vm-transit")||null };
   const {error}=await sb.from("venues").update(upd).eq("id",venueEditing);
   if(error){ toast("保存失败"); return; }
   await logAct(venueEditing,"编辑基本信息", upd.venue_name_jp||"场馆");
